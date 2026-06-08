@@ -1,0 +1,243 @@
+---
+title: "Monitor de Proyectos RIGI"
+subtitle: "Informe interactivo basado en la solapa Proyectos del archivo RIGI_tracker_data_final_con_proyectos_integrados.xlsx"
+format:
+  html:
+    title-block-banner: false
+---
+
+```{r setup, include=FALSE}
+source("R/00_packages.R")
+source("R/01_load_data.R")
+source("R/02_clean_data.R")
+source("R/03_indicators.R")
+source("R/04_plots.R")
+
+raw_proyectos <- load_proyectos()
+proyectos <- clean_proyectos(raw_proyectos)
+tablas <- make_indicator_tables(proyectos)
+indicadores <- make_indicators(proyectos)
+resumen_ejecutivo <- make_summary_text(indicadores, tablas)
+```
+
+```{r hero}
+htmltools::div(
+  class = "hero-section",
+  htmltools::div(class = "hero-eyebrow", "Dashboard reproducible en R + Quarto"),
+  htmltools::h1("Monitor de Proyectos RIGI"),
+  htmltools::p(
+    class = "hero-subtitle",
+    "Informe interactivo basado exclusivamente en la solapa Proyectos del archivo RIGI_tracker_data_final_con_proyectos_integrados.xlsx. El tablero distingue explícitamente entre el universo total de proyectos y el subconjunto de proyectos aprobados."
+  ),
+  htmltools::div(
+    class = "hero-meta-grid",
+    htmltools::div(
+      htmltools::span(class = "meta-label", "Informe generado el"),
+      htmltools::span(class = "meta-value", indicadores$fecha_actualizacion_fmt)
+    ),
+    htmltools::div(
+      htmltools::span(class = "meta-label", "Archivo fuente modificado"),
+      htmltools::span(class = "meta-value", indicadores$fecha_modificacion_archivo_fmt)
+    ),
+    htmltools::div(
+      htmltools::span(class = "meta-label", "Total de proyectos"),
+      htmltools::span(class = "meta-value", indicadores$n_proyectos_fmt)
+    ),
+    htmltools::div(
+      htmltools::span(class = "meta-label", "Proyectos aprobados"),
+      htmltools::span(class = "meta-value", indicadores$n_aprobados_fmt)
+    ),
+    htmltools::div(
+      htmltools::span(class = "meta-label", "Monto total informado"),
+      htmltools::span(class = "meta-value", indicadores$monto_total_bill_fmt)
+    ),
+    htmltools::div(
+      htmltools::span(class = "meta-label", "Monto aprobado"),
+      htmltools::span(class = "meta-value", indicadores$monto_aprobado_bill_fmt)
+    )
+  )
+)
+```
+
+## Indicadores del universo total
+
+```{r kpis-total}
+make_kpi_cards_total(indicadores)
+```
+
+## Indicadores de proyectos aprobados
+
+```{r kpis-aprobados}
+make_kpi_cards_aprobados(indicadores)
+```
+
+## Estado administrativo
+
+```{r kpis-estado}
+make_kpi_cards_estado(indicadores)
+```
+
+## Resumen ejecutivo
+
+```{r summary}
+htmltools::div(
+  class = "summary-box",
+  htmltools::p(resumen_ejecutivo)
+)
+```
+
+## Panorama general: total de proyectos
+
+```{r estado}
+plot_estado(tablas$estado_tbl)
+```
+
+## Comparación: total vs. aprobados
+
+::: {.note-box}
+En esta sección, **Total** incluye todos los proyectos registrados en la solapa `Proyectos`, independientemente de su estado administrativo. **Aprobados** incluye solo los proyectos cuyo estado administrativo fue clasificado como `Aprobado`.
+:::
+
+```{r comparacion-sector}
+plot_compare_total_aprobado(
+  total_tbl = tablas$sector_tbl,
+  aprobado_tbl = tablas$sector_tbl_aprobados,
+  label_col = "sector_simplificado",
+  title = "Monto por sector: total vs. aprobados",
+  subtitle = "Comparación entre el universo total y el subconjunto aprobado"
+)
+```
+
+```{r comparacion-provincia}
+plot_compare_total_aprobado(
+  total_tbl = tablas$provincia_tbl,
+  aprobado_tbl = tablas$provincia_tbl_aprobados,
+  label_col = "provincia_simplificada",
+  title = "Monto por provincia o región: total vs. aprobados",
+  subtitle = "Las categorías múltiples o regionales se conservan como figuran en la base"
+)
+```
+
+## Sectores: universo total
+
+```{r sector-total}
+plot_bar_monto(
+  tablas$sector_tbl,
+  label_col = "sector_simplificado",
+  title = "Monto total por sector",
+  subtitle = "Universo total de proyectos. Millones de USD informados en la solapa Proyectos"
+)
+```
+
+```{r subsector-total}
+plot_bar_monto(
+  tablas$subsector_tbl,
+  label_col = "subsector_simplificado",
+  title = "Monto total por subsector",
+  subtitle = "Universo total de proyectos. Ranking de subsectores por monto acumulado",
+  top_n = 15
+)
+```
+
+## Sectores: proyectos aprobados
+
+```{r sector-aprobados}
+plot_bar_monto(
+  tablas$sector_tbl_aprobados,
+  label_col = "sector_simplificado",
+  title = "Monto aprobado por sector",
+  subtitle = "Solo proyectos clasificados como aprobados",
+  fill_color = bar_color_approved
+)
+```
+
+```{r subsector-aprobados}
+plot_bar_monto(
+  tablas$subsector_tbl_aprobados,
+  label_col = "subsector_simplificado",
+  title = "Monto aprobado por subsector",
+  subtitle = "Solo proyectos clasificados como aprobados",
+  top_n = 15,
+  fill_color = bar_color_approved
+)
+```
+
+## Provincias y regiones: universo total
+
+```{r provincias-total}
+plot_bar_monto(
+  tablas$provincia_tbl,
+  label_col = "provincia_simplificada",
+  title = "Monto total por provincia o región",
+  subtitle = "Universo total de proyectos. Las categorías múltiples o regionales se conservan como figuran en la base"
+)
+```
+
+## Provincias y regiones: proyectos aprobados
+
+```{r provincias-aprobados}
+plot_bar_monto(
+  tablas$provincia_tbl_aprobados,
+  label_col = "provincia_simplificada",
+  title = "Monto aprobado por provincia o región",
+  subtitle = "Solo proyectos clasificados como aprobados",
+  fill_color = bar_color_approved
+)
+```
+
+## Principales proyectos: universo total
+
+```{r top-projects-total}
+plot_top_proyectos(
+  tablas$top_projects,
+  title = "Top 10 proyectos por monto: universo total",
+  subtitle = "Incluye todos los estados administrativos"
+)
+```
+
+## Principales proyectos: proyectos aprobados
+
+```{r top-projects-aprobados}
+plot_top_proyectos(
+  tablas$top_projects_aprobados,
+  title = "Top 10 proyectos aprobados por monto",
+  subtitle = "Solo proyectos clasificados como aprobados",
+  fill_color = bar_color_approved
+)
+```
+
+## Matriz sector-estado
+
+```{r sector-estado}
+plot_sector_estado(tablas$sector_estado_tbl)
+```
+
+## Línea de tiempo
+
+```{r timeline}
+plot_timeline(tablas$timeline_tbl)
+```
+
+::: {.note-box}
+Para la línea de tiempo se excluyen los registros sin fecha informada. En la base hay `r indicadores$n_sin_fecha_presentacion` proyectos sin fecha de presentación y `r indicadores$n_sin_fecha_aprobacion` proyectos sin fecha de aprobación.
+:::
+
+## Base interactiva
+
+```{r table}
+datatable_proyectos(proyectos)
+```
+
+## Notas metodológicas
+
+::: {.method-box}
+- El informe usa exclusivamente la solapa `Proyectos` del archivo `RIGI_tracker_data_final_con_proyectos_integrados.xlsx`.
+- El universo **Total** incluye todos los proyectos registrados, cualquiera sea su estado administrativo.
+- El universo **Aprobados** incluye únicamente los proyectos cuyo estado administrativo fue clasificado como `Aprobado`.
+- Los montos se expresan en millones de dólares estadounidenses, salvo cuando se muestran en miles de millones de dólares.
+- No se imputan datos faltantes de montos, fechas, empresas, sectores ni provincias.
+- Las fechas no informadas, vacías o no parseables se tratan como `NA`.
+- La fecha de generación del informe se calcula con `Sys.Date()`.
+- La fecha de modificación del archivo fuente se obtiene con `file.info()`.
+- Para actualizar el sitio, reemplazá el Excel en `data/` y volvé a ejecutar `quarto render`.
+:::

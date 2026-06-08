@@ -1,0 +1,154 @@
+---
+title: "Monitor de Proyectos RIGI"
+subtitle: "Presentación ejecutiva basada en la solapa Proyectos"
+format:
+  revealjs:
+    theme: simple
+    css: styles.css
+    slide-number: true
+    scrollable: true
+    transition: fade
+execute:
+  echo: false
+  warning: false
+  message: false
+---
+
+```{r setup, include=FALSE}
+source("R/00_packages.R")
+source("R/01_load_data.R")
+source("R/02_clean_data.R")
+source("R/03_indicators.R")
+source("R/04_plots.R")
+
+raw_proyectos <- load_proyectos()
+proyectos <- clean_proyectos(raw_proyectos)
+tablas <- make_indicator_tables(proyectos)
+indicadores <- make_indicators(proyectos)
+resumen_ejecutivo <- make_summary_text(indicadores, tablas)
+```
+
+## Monitor de Proyectos RIGI
+
+::: {.presentation-cover}
+**Informe interactivo y presentación reproducible**  
+Fuente: solapa `Proyectos` del archivo Excel del tracker RIGI.
+
+Informe generado el: **`r indicadores$fecha_actualizacion_fmt`**  
+Archivo fuente modificado: **`r indicadores$fecha_modificacion_archivo_fmt`**
+:::
+
+## Universo total de proyectos
+
+```{r}
+make_kpi_cards_total(indicadores)
+```
+
+## Proyectos aprobados
+
+```{r}
+make_kpi_cards_aprobados(indicadores)
+```
+
+## Estado administrativo
+
+```{r}
+make_kpi_cards_estado(indicadores)
+```
+
+## Resumen ejecutivo
+
+```{r}
+htmltools::div(class = "summary-box", htmltools::p(resumen_ejecutivo))
+```
+
+## Distribución por estado
+
+```{r}
+plot_estado(tablas$estado_tbl)
+```
+
+## Sector: total vs. aprobados
+
+```{r}
+plot_compare_total_aprobado(
+  total_tbl = tablas$sector_tbl,
+  aprobado_tbl = tablas$sector_tbl_aprobados,
+  label_col = "sector_simplificado",
+  title = "Monto por sector: total vs. aprobados"
+)
+```
+
+## Provincia o región: total vs. aprobados
+
+```{r}
+plot_compare_total_aprobado(
+  total_tbl = tablas$provincia_tbl,
+  aprobado_tbl = tablas$provincia_tbl_aprobados,
+  label_col = "provincia_simplificada",
+  title = "Monto por provincia o región: total vs. aprobados"
+)
+```
+
+## Sectores principales: universo total
+
+```{r}
+plot_bar_monto(
+  tablas$sector_tbl,
+  label_col = "sector_simplificado",
+  title = "Monto total por sector"
+)
+```
+
+## Sectores principales: aprobados
+
+```{r}
+plot_bar_monto(
+  tablas$sector_tbl_aprobados,
+  label_col = "sector_simplificado",
+  title = "Monto aprobado por sector",
+  fill_color = bar_color_approved
+)
+```
+
+## Principales proyectos: universo total
+
+```{r}
+plot_top_proyectos(
+  tablas$top_projects,
+  title = "Top 10 proyectos por monto: universo total"
+)
+```
+
+## Principales proyectos aprobados
+
+```{r}
+plot_top_proyectos(
+  tablas$top_projects_aprobados,
+  title = "Top 10 proyectos aprobados por monto",
+  fill_color = bar_color_approved
+)
+```
+
+## Línea de tiempo
+
+```{r}
+plot_timeline(tablas$timeline_tbl)
+```
+
+## Conclusiones
+
+- La base contiene **`r indicadores$n_proyectos_fmt`** proyectos registrados en la solapa `Proyectos`.
+- El monto total informado asciende a **`r indicadores$monto_total_bill_fmt`**.
+- Dentro del total, hay **`r indicadores$n_aprobados_fmt`** proyectos aprobados.
+- Los aprobados representan **`r indicadores$prop_aprobados_fmt`** de la cantidad de proyectos y **`r indicadores$prop_monto_aprobado_fmt`** del monto informado.
+- El monto aprobado asciende a **`r indicadores$monto_aprobado_bill_fmt`**.
+- En el universo total, el sector con mayor monto acumulado es **`r indicadores$sector_top_monto`**.
+- Entre los aprobados, el sector con mayor monto aprobado es **`r indicadores$sector_top_monto_aprobado`**.
+
+## Fecha de actualización
+
+::: {.note-box}
+Informe generado el **`r indicadores$fecha_actualizacion_fmt`**.  
+Última modificación detectada del archivo fuente: **`r indicadores$fecha_modificacion_archivo_fmt`**.
+:::
