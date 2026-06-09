@@ -12,18 +12,34 @@ empty_to_na <- function(x) {
   x
 }
 
-rename_if_exists <- function(data, old, new) {
-  if (old %in% names(data) && !new %in% names(data)) {
-    data <- dplyr::rename(data, !!new := !!rlang::sym(old))
-  }
-  data
+normalize_text <- function(x) {
+  x <- as.character(x)
+  x <- stringr::str_squish(x)
+  x <- stringr::str_to_lower(x)
+  x <- iconv(x, from = "UTF-8", to = "ASCII//TRANSLIT")
+  x
 }
 
-add_missing_columns <- function(data, cols) {
-  for (col in cols) {
-    if (!col %in% names(data)) data[[col]] <- NA
+coalesce_text_cols <- function(data, candidates) {
+  n <- nrow(data)
+  out <- rep(NA_character_, n)
+  for (col in candidates) {
+    if (col %in% names(data)) {
+      out <- dplyr::coalesce(out, empty_to_na(as.character(data[[col]])))
+    }
   }
-  data
+  out
+}
+
+coalesce_raw_cols <- function(data, candidates) {
+  n <- nrow(data)
+  out <- rep(NA_character_, n)
+  for (col in candidates) {
+    if (col %in% names(data)) {
+      out <- dplyr::coalesce(out, as.character(data[[col]]))
+    }
+  }
+  out
 }
 
 parse_numeric_mixed <- function(x) {
@@ -50,18 +66,14 @@ parse_numeric_mixed <- function(x) {
       last_dot <- max(gregexpr(".", value, fixed = TRUE)[[1]])
 
       if (last_comma > last_dot) {
-        # Formato tipo 1.234,56
         value <- stringr::str_replace_all(value, "\\.", "")
         value <- stringr::str_replace(value, ",", ".")
       } else {
-        # Formato tipo 1,234.56
         value <- stringr::str_replace_all(value, ",", "")
       }
     } else if (has_comma && !has_dot) {
-      # Formato tipo 1234,56
       value <- stringr::str_replace(value, ",", ".")
     } else if (!has_comma && has_dot) {
-      # Si hay más de un punto, se interpreta como separador de miles.
       n_dots <- stringr::str_count(value, "\\.")
       if (n_dots > 1) value <- stringr::str_replace_all(value, "\\.", "")
     }
@@ -85,6 +97,7 @@ convert_excel_date <- function(x) {
   numeric_guess <- suppressWarnings(as.numeric(x_chr))
   numeric_idx <- !is.na(numeric_guess)
 
+  # Excel usa 1899-12-30 como origen práctico para fechas seriales.
   out[numeric_idx] <- as.Date(numeric_guess[numeric_idx], origin = "1899-12-30")
 
   text_idx <- !numeric_idx & !is.na(x_chr)
@@ -104,75 +117,91 @@ clean_proyectos <- function(raw_data) {
     janitor::clean_names() |>
     dplyr::mutate(dplyr::across(where(is.character), empty_to_na))
 
-  required_core <- c(
-    "proyecto", "empresa", "sector", "provincia",
-    "monto_mill_usd", "estado_administrativo"
-  )
+  # La versión actualizada del Excel usa VPU como nombre del proyecto.
+  # Esta limpieza conserva compatibilidad con versiones anteriores que tenían columna Proyecto.
+  proyecto <- coalesce_text_cols(data, c("proyecto", "vpu", "nombre_proyecto_matcheado"))
+  descripcion <- coalesce_text_cols(data, c("descripcion_del_proyecto", "descripcion", "description"))
+  empresa <- coalesce_text_cols(data, c("empresa", "empresas"))
+  titular <- coalesce_text_cols(data, c("titular_proyecto", "vpu_o_sociedad", "sociedad", "titular"))
+  cuit <- coalesce_text_cols(data, c("cuit", "cuit_titular"))
+  sector <- coalesce_text_cols(data, c("sector"))
+  subsector <- coalesce_text_cols(data, c("subsector"))
+  actividad_subsector <- coalesce_text_cols(data, c("actividad_subsector_resolucion_mecon", "actividad_subsector_resolucion_mec_on", "actividad_subsector"))
+  provincia <- coalesce_text_cols(data, c("provincia"))
+  localidad_region <- coalesce_text_cols(data, c("localidad_region", "localidad", "region"))
+  estado <- coalesce_text_cols(data, c("estado_administrativo", "estado"))
+  norma <- coalesce_text_cols(data, c("norma_aprobacion", "norma"))
+  link_norma <- coalesce_text_cols(data, c("link_norma", "url_norma", "enlace_norma"))
+  fuentes <- coalesce_text_cols(data, c("fuentes", "fuente"))
+  preexistencia <- coalesce_text_cols(data, c("clasificacion_preexistencia_boletin_oficial", "clasificacion_preexistencia"))
+  justificacion_preexistencia <- coalesce_text_cols(data, c("justificacion_preexistencia_boletin_oficial", "justificacion_preexistencia"))
+  proyecto_exportacion <- coalesce_text_cols(data, c("proyecto_de_exportacion_estrategia_a_largo_plazo", "proyecto_de_exportacion_estrategia_a_largo_plazo_"))
 
-  missing_core <- setdiff(required_core, names(data))
-  if (length(missing_core) > 0) {
-    stop(
-      "Faltan columnas clave en la solapa Proyectos: ",
-      paste(missing_core, collapse = ", "),
-      call. = FALSE
+  monto_raw <- coalesce_raw_cols(data, c("monto_mill_usd", "monto_usd_mill", "monto"))
+  activos_raw <- coalesce_raw_cols(data, c("activos_computables_mill_usd", "activos_computables_usd_mill", "activos_computables"))
+
+  fecha_presentacion_raw <- coalesce_raw_cols(data, c("fecha_presentacion", "fecha_de_presentacion"))
+  fecha_adhesion_raw <- coalesce_raw_cols(data, c("fecha_adhesion_rigi", "fecha_adhesion", "fecha_de_adhesion_rigi"))
+  fecha_publicacion_bo_raw <- coalesce_raw_cols(data, c("fecha_publicacion_bo", "fecha_publicacion_boletin_oficial", "fecha_publicacion"))
+  fecha_aprobacion_raw <- coalesce_raw_cols(data, c("fecha_aprobacion", "fecha_de_aprobacion"))
+
+  fecha_presentacion <- convert_excel_date(fecha_presentacion_raw)
+  fecha_adhesion_rigi <- convert_excel_date(fecha_adhesion_raw)
+  fecha_publicacion_bo <- convert_excel_date(fecha_publicacion_bo_raw)
+  fecha_aprobacion_original <- convert_excel_date(fecha_aprobacion_raw)
+
+  # Para aprobados, la fecha operacional de aprobación se prioriza como publicación en BO.
+  fecha_aprobacion <- dplyr::coalesce(fecha_aprobacion_original, fecha_publicacion_bo, fecha_adhesion_rigi)
+
+  estado_norm <- normalize_text(estado)
+
+  tibble::tibble(
+    id_proyecto = coalesce_text_cols(data, c("id_proyecto", "id")),
+    proyecto = proyecto,
+    descripcion_del_proyecto = descripcion,
+    proyecto_de_exportacion_estrategia_largo_plazo = proyecto_exportacion,
+    empresa = empresa,
+    titular_proyecto = titular,
+    vpu_o_sociedad = titular,
+    cuit = cuit,
+    sector = sector,
+    subsector = subsector,
+    actividad_subsector_resolucion_mecon = actividad_subsector,
+    provincia = provincia,
+    localidad_region = localidad_region,
+    monto_usd_mill = parse_numeric_mixed(monto_raw),
+    activos_computables_usd_mill = parse_numeric_mixed(activos_raw),
+    estado = estado,
+    fecha_presentacion = fecha_presentacion,
+    fecha_adhesion_rigi = fecha_adhesion_rigi,
+    fecha_publicacion_bo = fecha_publicacion_bo,
+    fecha_aprobacion = fecha_aprobacion,
+    norma_aprobacion = norma,
+    clasificacion_preexistencia_boletin_oficial = preexistencia,
+    justificacion_preexistencia_boletin_oficial = justificacion_preexistencia,
+    link_norma = link_norma,
+    fuentes = fuentes,
+    estado_simplificado = dplyr::case_when(
+      stringr::str_detect(estado_norm, "no aprob|rechaz|desest") ~ "Rechazado",
+      stringr::str_detect(estado_norm, "aprob") ~ "Aprobado",
+      stringr::str_detect(estado_norm, "evalu|pend|anal|present|tram|anunci") ~ "Pendiente de aprobación",
+      is.na(estado) ~ "No informado",
+      TRUE ~ "Otros"
+    ),
+    sector_simplificado = dplyr::coalesce(sector, "No informado"),
+    subsector_simplificado = dplyr::coalesce(subsector, "No informado"),
+    provincia_simplificada = dplyr::coalesce(provincia, "No informado"),
+    monto_usd_bill = monto_usd_mill / 1000,
+    anio_presentacion = lubridate::year(fecha_presentacion),
+    anio_aprobacion = lubridate::year(fecha_aprobacion),
+    mes_presentacion = lubridate::floor_date(fecha_presentacion, unit = "month"),
+    mes_aprobacion = lubridate::floor_date(fecha_aprobacion, unit = "month"),
+    aprobado = estado_simplificado == "Aprobado",
+    pendiente_aprobacion = estado_simplificado == "Pendiente de aprobación",
+    fuente_analitica = dplyr::case_when(
+      aprobado ~ "Boletín Oficial + empresas inferidas por Globaris",
+      pendiente_aprobacion ~ "Dashboard de Globaris",
+      TRUE ~ dplyr::coalesce(fuentes, "No informado")
     )
-  }
-
-  data <- data |>
-    rename_if_exists("monto_mill_usd", "monto_usd_mill") |>
-    rename_if_exists("activos_computables_mill_usd", "activos_computables_usd_mill") |>
-    rename_if_exists("estado_administrativo", "estado")
-
-  data <- add_missing_columns(
-    data,
-    c(
-      "id_proyecto",
-      "proyecto",
-      "nombre_proyecto_matcheado",
-      "empresa",
-      "vpu_o_sociedad",
-      "sector",
-      "subsector",
-      "provincia",
-      "localidad_region",
-      "monto_usd_mill",
-      "activos_computables_usd_mill",
-      "estado",
-      "fecha_presentacion",
-      "fecha_aprobacion",
-      "norma_aprobacion"
-    )
   )
-
-  data |>
-    dplyr::mutate(
-      monto_usd_mill = parse_numeric_mixed(monto_usd_mill),
-      activos_computables_usd_mill = parse_numeric_mixed(activos_computables_usd_mill),
-      fecha_presentacion = convert_excel_date(fecha_presentacion),
-      fecha_aprobacion = convert_excel_date(fecha_aprobacion),
-      estado = empty_to_na(as.character(estado)),
-      sector = empty_to_na(as.character(sector)),
-      subsector = empty_to_na(as.character(subsector)),
-      provincia = empty_to_na(as.character(provincia)),
-      empresa = empty_to_na(as.character(empresa)),
-      proyecto = empty_to_na(as.character(proyecto)),
-      estado_lower = stringr::str_to_lower(estado),
-      estado_simplificado = dplyr::case_when(
-        stringr::str_detect(estado_lower, "aprob") ~ "Aprobado",
-        stringr::str_detect(estado_lower, "rechaz|desest|no aprob") ~ "Rechazado",
-        stringr::str_detect(estado_lower, "evalu|pend|anal|present|tram|trám") ~ "En evaluación",
-        is.na(estado) ~ "No informado",
-        TRUE ~ "Otros"
-      ),
-      sector_simplificado = dplyr::coalesce(sector, "No informado"),
-      subsector_simplificado = dplyr::coalesce(subsector, "No informado"),
-      provincia_simplificada = dplyr::coalesce(provincia, "No informado"),
-      monto_usd_bill = monto_usd_mill / 1000,
-      anio_presentacion = lubridate::year(fecha_presentacion),
-      anio_aprobacion = lubridate::year(fecha_aprobacion),
-      mes_presentacion = lubridate::floor_date(fecha_presentacion, unit = "month"),
-      mes_aprobacion = lubridate::floor_date(fecha_aprobacion, unit = "month"),
-      aprobado = estado_simplificado == "Aprobado"
-    ) |>
-    dplyr::select(-estado_lower)
 }

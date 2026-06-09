@@ -92,6 +92,7 @@ make_top_projects <- function(data, n = 10) {
     dplyr::select(
       proyecto,
       empresa,
+      titular_proyecto,
       sector_simplificado,
       subsector_simplificado,
       provincia_simplificada,
@@ -99,13 +100,54 @@ make_top_projects <- function(data, n = 10) {
       monto_usd_mill,
       monto_usd_bill,
       fecha_presentacion,
-      fecha_aprobacion
+      fecha_adhesion_rigi,
+      fecha_publicacion_bo,
+      fecha_aprobacion,
+      norma_aprobacion,
+      link_norma,
+      fuentes,
+      fuente_analitica
     )
+}
+
+make_timeline <- function(data) {
+  presentaciones <- data |>
+    dplyr::filter(!is.na(fecha_presentacion)) |>
+    dplyr::transmute(
+      proyecto, empresa, sector_simplificado, provincia_simplificada,
+      estado_simplificado, monto_usd_mill,
+      fecha = fecha_presentacion,
+      evento = "Presentación"
+    )
+
+  adhesiones <- data |>
+    dplyr::filter(!is.na(fecha_adhesion_rigi)) |>
+    dplyr::transmute(
+      proyecto, empresa, sector_simplificado, provincia_simplificada,
+      estado_simplificado, monto_usd_mill,
+      fecha = fecha_adhesion_rigi,
+      evento = "Adhesión RIGI"
+    )
+
+  publicaciones <- data |>
+    dplyr::filter(!is.na(fecha_publicacion_bo)) |>
+    dplyr::transmute(
+      proyecto, empresa, sector_simplificado, provincia_simplificada,
+      estado_simplificado, monto_usd_mill,
+      fecha = fecha_publicacion_bo,
+      evento = "Publicación BO"
+    )
+
+  dplyr::bind_rows(presentaciones, adhesiones, publicaciones) |>
+    dplyr::arrange(fecha)
 }
 
 make_indicator_tables <- function(proyectos) {
   proyectos_aprobados <- proyectos |>
-    dplyr::filter(estado_simplificado == "Aprobado")
+    dplyr::filter(aprobado)
+
+  proyectos_pendientes <- proyectos |>
+    dplyr::filter(pendiente_aprobacion)
 
   estado_tbl <- summarise_category(proyectos, "estado_simplificado")
   sector_tbl <- summarise_category(proyectos, "sector_simplificado")
@@ -116,8 +158,13 @@ make_indicator_tables <- function(proyectos) {
   subsector_tbl_aprobados <- summarise_category(proyectos_aprobados, "subsector_simplificado")
   provincia_tbl_aprobados <- summarise_category(proyectos_aprobados, "provincia_simplificada")
 
+  sector_tbl_pendientes <- summarise_category(proyectos_pendientes, "sector_simplificado")
+  subsector_tbl_pendientes <- summarise_category(proyectos_pendientes, "subsector_simplificado")
+  provincia_tbl_pendientes <- summarise_category(proyectos_pendientes, "provincia_simplificada")
+
   top_projects <- make_top_projects(proyectos, n = 10)
   top_projects_aprobados <- make_top_projects(proyectos_aprobados, n = 10)
+  top_projects_pendientes <- make_top_projects(proyectos_pendientes, n = 10)
 
   sector_estado_tbl <- proyectos |>
     dplyr::group_by(sector_simplificado, estado_simplificado) |>
@@ -127,33 +174,9 @@ make_indicator_tables <- function(proyectos) {
       .groups = "drop"
     )
 
-  timeline_tbl <- proyectos |>
-    dplyr::select(
-      proyecto,
-      empresa,
-      sector_simplificado,
-      provincia_simplificada,
-      estado_simplificado,
-      monto_usd_mill,
-      fecha_presentacion,
-      fecha_aprobacion
-    ) |>
-    tidyr::pivot_longer(
-      cols = c(fecha_presentacion, fecha_aprobacion),
-      names_to = "tipo_fecha",
-      values_to = "fecha"
-    ) |>
-    dplyr::mutate(
-      evento = dplyr::case_when(
-        tipo_fecha == "fecha_presentacion" ~ "Presentación",
-        tipo_fecha == "fecha_aprobacion" ~ "Aprobación",
-        TRUE ~ tipo_fecha
-      )
-    ) |>
-    dplyr::filter(!is.na(fecha)) |>
-    dplyr::arrange(fecha)
-
   list(
+    proyectos_aprobados = proyectos_aprobados,
+    proyectos_pendientes = proyectos_pendientes,
     estado_tbl = estado_tbl,
     sector_tbl = sector_tbl,
     subsector_tbl = subsector_tbl,
@@ -161,85 +184,90 @@ make_indicator_tables <- function(proyectos) {
     sector_tbl_aprobados = sector_tbl_aprobados,
     subsector_tbl_aprobados = subsector_tbl_aprobados,
     provincia_tbl_aprobados = provincia_tbl_aprobados,
+    sector_tbl_pendientes = sector_tbl_pendientes,
+    subsector_tbl_pendientes = subsector_tbl_pendientes,
+    provincia_tbl_pendientes = provincia_tbl_pendientes,
     top_projects = top_projects,
     top_projects_aprobados = top_projects_aprobados,
+    top_projects_pendientes = top_projects_pendientes,
     sector_estado_tbl = sector_estado_tbl,
-    timeline_tbl = timeline_tbl,
+    timeline_tbl = make_timeline(proyectos),
+    timeline_aprobados_tbl = make_timeline(proyectos_aprobados),
+    timeline_pendientes_tbl = make_timeline(proyectos_pendientes),
     n_sin_fecha_presentacion = sum(is.na(proyectos$fecha_presentacion)),
-    n_sin_fecha_aprobacion = sum(is.na(proyectos$fecha_aprobacion))
+    n_sin_fecha_aprobacion = sum(is.na(proyectos$fecha_aprobacion)),
+    n_sin_fecha_presentacion_aprobados = sum(is.na(proyectos_aprobados$fecha_presentacion)),
+    n_sin_fecha_publicacion_bo_aprobados = sum(is.na(proyectos_aprobados$fecha_publicacion_bo)),
+    n_sin_fecha_presentacion_pendientes = sum(is.na(proyectos_pendientes$fecha_presentacion))
   )
 }
 
 make_indicators <- function(proyectos, path = excel_path) {
   tablas <- make_indicator_tables(proyectos)
-  proyectos_aprobados <- proyectos |>
-    dplyr::filter(estado_simplificado == "Aprobado")
+  aprobados <- tablas$proyectos_aprobados
+  pendientes <- tablas$proyectos_pendientes
+  rechazados <- proyectos |> dplyr::filter(estado_simplificado == "Rechazado")
 
-  n_proyectos <- nrow(proyectos)
-  n_aprobados <- nrow(proyectos_aprobados)
+  n_total <- nrow(proyectos)
+  n_aprobados <- nrow(aprobados)
+  n_pendientes <- nrow(pendientes)
+  n_rechazados <- nrow(rechazados)
 
   monto_total <- safe_sum(proyectos$monto_usd_mill)
-  monto_total_bill <- monto_total / 1000
-
-  monto_aprobado <- safe_sum(proyectos_aprobados$monto_usd_mill)
-  monto_aprobado_bill <- monto_aprobado / 1000
-
-  monto_evaluacion <- safe_sum(proyectos$monto_usd_mill[proyectos$estado_simplificado == "En evaluación"])
-  monto_rechazado <- safe_sum(proyectos$monto_usd_mill[proyectos$estado_simplificado == "Rechazado"])
-
-  n_evaluacion <- sum(proyectos$estado_simplificado == "En evaluación", na.rm = TRUE)
-  n_rechazados <- sum(proyectos$estado_simplificado == "Rechazado", na.rm = TRUE)
-
-  monto_promedio_total <- safe_mean(proyectos$monto_usd_mill)
-  monto_mediano_total <- safe_median(proyectos$monto_usd_mill)
-  monto_promedio_aprobado <- safe_mean(proyectos_aprobados$monto_usd_mill)
-  monto_mediano_aprobado <- safe_median(proyectos_aprobados$monto_usd_mill)
-
-  prop_aprobados_cantidad <- ifelse(n_proyectos > 0, n_aprobados / n_proyectos, NA_real_)
-  prop_aprobados_monto <- ifelse(monto_total > 0, monto_aprobado / monto_total, NA_real_)
+  monto_aprobado <- safe_sum(aprobados$monto_usd_mill)
+  monto_pendiente <- safe_sum(pendientes$monto_usd_mill)
+  monto_rechazado <- safe_sum(rechazados$monto_usd_mill)
 
   list(
-    n_proyectos = n_proyectos,
-    n_proyectos_fmt = fmt_number(n_proyectos, accuracy = 1),
+    n_proyectos = n_total,
+    n_proyectos_fmt = fmt_number(n_total, accuracy = 1),
     monto_total = monto_total,
     monto_total_fmt = fmt_currency_mill(monto_total, accuracy = 1),
-    monto_total_bill = monto_total_bill,
-    monto_total_bill_fmt = fmt_currency_bill(monto_total_bill, accuracy = 0.01),
+    monto_total_bill = monto_total / 1000,
+    monto_total_bill_fmt = fmt_currency_bill(monto_total / 1000, accuracy = 0.01),
 
     n_aprobados = n_aprobados,
     n_aprobados_fmt = fmt_number(n_aprobados, accuracy = 1),
     monto_aprobado = monto_aprobado,
     monto_aprobado_fmt = fmt_currency_mill(monto_aprobado, accuracy = 1),
-    monto_aprobado_bill = monto_aprobado_bill,
-    monto_aprobado_bill_fmt = fmt_currency_bill(monto_aprobado_bill, accuracy = 0.01),
+    monto_aprobado_bill = monto_aprobado / 1000,
+    monto_aprobado_bill_fmt = fmt_currency_bill(monto_aprobado / 1000, accuracy = 0.01),
+    monto_promedio_aprobado = safe_mean(aprobados$monto_usd_mill),
+    monto_promedio_aprobado_fmt = fmt_currency_mill(safe_mean(aprobados$monto_usd_mill), accuracy = 1),
+    monto_mediano_aprobado = safe_median(aprobados$monto_usd_mill),
+    monto_mediano_aprobado_fmt = fmt_currency_mill(safe_median(aprobados$monto_usd_mill), accuracy = 1),
+    prop_aprobados = ifelse(n_total > 0, n_aprobados / n_total, NA_real_),
+    prop_aprobados_fmt = fmt_pct(ifelse(n_total > 0, n_aprobados / n_total, NA_real_)),
+    prop_monto_aprobado = ifelse(monto_total > 0, monto_aprobado / monto_total, NA_real_),
+    prop_monto_aprobado_fmt = fmt_pct(ifelse(monto_total > 0, monto_aprobado / monto_total, NA_real_)),
 
-    n_evaluacion = n_evaluacion,
-    n_evaluacion_fmt = fmt_number(n_evaluacion, accuracy = 1),
-    monto_evaluacion = monto_evaluacion,
-    monto_evaluacion_fmt = fmt_currency_mill(monto_evaluacion, accuracy = 1),
+    n_pendientes = n_pendientes,
+    n_pendientes_fmt = fmt_number(n_pendientes, accuracy = 1),
+    monto_pendiente = monto_pendiente,
+    monto_pendiente_fmt = fmt_currency_mill(monto_pendiente, accuracy = 1),
+    monto_pendiente_bill = monto_pendiente / 1000,
+    monto_pendiente_bill_fmt = fmt_currency_bill(monto_pendiente / 1000, accuracy = 0.01),
+    monto_promedio_pendiente = safe_mean(pendientes$monto_usd_mill),
+    monto_promedio_pendiente_fmt = fmt_currency_mill(safe_mean(pendientes$monto_usd_mill), accuracy = 1),
+    monto_mediano_pendiente = safe_median(pendientes$monto_usd_mill),
+    monto_mediano_pendiente_fmt = fmt_currency_mill(safe_median(pendientes$monto_usd_mill), accuracy = 1),
+    prop_pendientes = ifelse(n_total > 0, n_pendientes / n_total, NA_real_),
+    prop_pendientes_fmt = fmt_pct(ifelse(n_total > 0, n_pendientes / n_total, NA_real_)),
+    prop_monto_pendiente = ifelse(monto_total > 0, monto_pendiente / monto_total, NA_real_),
+    prop_monto_pendiente_fmt = fmt_pct(ifelse(monto_total > 0, monto_pendiente / monto_total, NA_real_)),
+
     n_rechazados = n_rechazados,
     n_rechazados_fmt = fmt_number(n_rechazados, accuracy = 1),
     monto_rechazado = monto_rechazado,
     monto_rechazado_fmt = fmt_currency_mill(monto_rechazado, accuracy = 1),
 
-    monto_promedio = monto_promedio_total,
-    monto_promedio_fmt = fmt_currency_mill(monto_promedio_total, accuracy = 1),
-    monto_mediano = monto_mediano_total,
-    monto_mediano_fmt = fmt_currency_mill(monto_mediano_total, accuracy = 1),
-    monto_promedio_aprobado = monto_promedio_aprobado,
-    monto_promedio_aprobado_fmt = fmt_currency_mill(monto_promedio_aprobado, accuracy = 1),
-    monto_mediano_aprobado = monto_mediano_aprobado,
-    monto_mediano_aprobado_fmt = fmt_currency_mill(monto_mediano_aprobado, accuracy = 1),
-
-    prop_aprobados = prop_aprobados_cantidad,
-    prop_aprobados_fmt = fmt_pct(prop_aprobados_cantidad),
-    prop_monto_aprobado = prop_aprobados_monto,
-    prop_monto_aprobado_fmt = fmt_pct(prop_aprobados_monto),
+    monto_promedio = safe_mean(proyectos$monto_usd_mill),
+    monto_promedio_fmt = fmt_currency_mill(safe_mean(proyectos$monto_usd_mill), accuracy = 1),
+    monto_mediano = safe_median(proyectos$monto_usd_mill),
+    monto_mediano_fmt = fmt_currency_mill(safe_median(proyectos$monto_usd_mill), accuracy = 1),
 
     sector_top_monto = top_category(tablas$sector_tbl, "sector_simplificado", "monto_usd_mill"),
-    sector_top_cantidad = top_category(tablas$sector_tbl, "sector_simplificado", "n_proyectos"),
     provincia_top_monto = top_category(tablas$provincia_tbl, "provincia_simplificada", "monto_usd_mill"),
-    provincia_top_cantidad = top_category(tablas$provincia_tbl, "provincia_simplificada", "n_proyectos"),
     estado_predominante = top_category(tablas$estado_tbl, "estado_simplificado", "n_proyectos"),
 
     sector_top_monto_aprobado = top_category(tablas$sector_tbl_aprobados, "sector_simplificado", "monto_usd_mill"),
@@ -247,12 +275,20 @@ make_indicators <- function(proyectos, path = excel_path) {
     provincia_top_monto_aprobado = top_category(tablas$provincia_tbl_aprobados, "provincia_simplificada", "monto_usd_mill"),
     provincia_top_cantidad_aprobado = top_category(tablas$provincia_tbl_aprobados, "provincia_simplificada", "n_proyectos"),
 
+    sector_top_monto_pendiente = top_category(tablas$sector_tbl_pendientes, "sector_simplificado", "monto_usd_mill"),
+    sector_top_cantidad_pendiente = top_category(tablas$sector_tbl_pendientes, "sector_simplificado", "n_proyectos"),
+    provincia_top_monto_pendiente = top_category(tablas$provincia_tbl_pendientes, "provincia_simplificada", "monto_usd_mill"),
+    provincia_top_cantidad_pendiente = top_category(tablas$provincia_tbl_pendientes, "provincia_simplificada", "n_proyectos"),
+
     fecha_actualizacion = Sys.Date(),
     fecha_actualizacion_fmt = fmt_date(Sys.Date()),
     fecha_modificacion_archivo = get_file_update_time(path),
     fecha_modificacion_archivo_fmt = fmt_datetime(get_file_update_time(path)),
     n_sin_fecha_presentacion = tablas$n_sin_fecha_presentacion,
-    n_sin_fecha_aprobacion = tablas$n_sin_fecha_aprobacion
+    n_sin_fecha_aprobacion = tablas$n_sin_fecha_aprobacion,
+    n_sin_fecha_presentacion_aprobados = tablas$n_sin_fecha_presentacion_aprobados,
+    n_sin_fecha_publicacion_bo_aprobados = tablas$n_sin_fecha_publicacion_bo_aprobados,
+    n_sin_fecha_presentacion_pendientes = tablas$n_sin_fecha_presentacion_pendientes
   )
 }
 
@@ -260,53 +296,41 @@ format_top_projects_text <- function(top_projects, n = 3) {
   out <- top_projects |>
     dplyr::slice_head(n = n) |>
     dplyr::mutate(
-      txt = paste0(
-        proyecto,
-        " (",
-        fmt_currency_mill(monto_usd_mill, accuracy = 1),
-        ")"
-      )
+      txt = paste0(proyecto, " (", fmt_currency_mill(monto_usd_mill, accuracy = 1), ")")
     ) |>
     dplyr::pull(txt) |>
     paste(collapse = "; ")
 
-  if (length(out) == 0 || is.na(out) || out == "") {
-    out <- "no hay proyectos con monto informado"
-  }
-
+  if (length(out) == 0 || is.na(out) || out == "") out <- "no hay proyectos con monto informado"
   out
 }
 
 make_summary_text <- function(indicadores, tablas) {
-  top_projects_total_text <- format_top_projects_text(tablas$top_projects, n = 3)
-  top_projects_aprobados_text <- format_top_projects_text(tablas$top_projects_aprobados, n = 3)
+  top_aprobados <- format_top_projects_text(tablas$top_projects_aprobados, n = 3)
+  top_pendientes <- format_top_projects_text(tablas$top_projects_pendientes, n = 3)
 
   glue::glue(
-    "En el universo total, la base contiene {indicadores$n_proyectos_fmt} proyectos vinculados al RIGI, ",
-    "por un monto total informado de {indicadores$monto_total_fmt} ",
-    "({indicadores$monto_total_bill_fmt}). ",
-    "Dentro de ese total, {indicadores$n_aprobados_fmt} proyectos se encuentran aprobados, ",
-    "equivalentes al {indicadores$prop_aprobados_fmt} de los registros y al ",
-    "{indicadores$prop_monto_aprobado_fmt} del monto informado. ",
-    "El monto aprobado acumulado asciende a {indicadores$monto_aprobado_fmt} ",
-    "({indicadores$monto_aprobado_bill_fmt}). ",
-    "Además, {indicadores$n_evaluacion_fmt} proyectos figuran en evaluación ",
-    "y {indicadores$n_rechazados_fmt} aparecen clasificados como rechazados. ",
+    "El foco principal del informe está puesto en los proyectos aprobados. ",
+    "La base registra {indicadores$n_aprobados_fmt} proyectos aprobados, por un monto aprobado acumulado de ",
+    "{indicadores$monto_aprobado_fmt} ({indicadores$monto_aprobado_bill_fmt}). ",
+    "Estos proyectos representan el {indicadores$prop_aprobados_fmt} de los registros y el ",
+    "{indicadores$prop_monto_aprobado_fmt} del monto total informado. ",
+    "Entre los aprobados, el sector con mayor monto acumulado es {indicadores$sector_top_monto_aprobado}; ",
+    "la provincia o región con mayor monto aprobado es {indicadores$provincia_top_monto_aprobado}. ",
+    "Los principales proyectos aprobados por monto son: {top_aprobados}. ",
     "\n\n",
-    "Para el total de proyectos, el sector con mayor monto acumulado es ",
-    "{indicadores$sector_top_monto}, mientras que el sector con mayor cantidad de proyectos es ",
-    "{indicadores$sector_top_cantidad}. ",
-    "La provincia o región con mayor monto registrado en el total es ",
-    "{indicadores$provincia_top_monto}. ",
-    "Los principales proyectos del universo total por monto son: {top_projects_total_text}. ",
+    "En segundo lugar, el informe muestra los proyectos pendientes de aprobación o en evaluación. ",
+    "Este subconjunto contiene {indicadores$n_pendientes_fmt} proyectos, por un monto informado de ",
+    "{indicadores$monto_pendiente_fmt} ({indicadores$monto_pendiente_bill_fmt}). ",
+    "Los pendientes representan el {indicadores$prop_pendientes_fmt} de los registros y el ",
+    "{indicadores$prop_monto_pendiente_fmt} del monto total informado. ",
+    "El sector con mayor monto pendiente es {indicadores$sector_top_monto_pendiente}; ",
+    "la provincia o región con mayor monto pendiente es {indicadores$provincia_top_monto_pendiente}. ",
+    "Los principales proyectos pendientes por monto son: {top_pendientes}. ",
     "\n\n",
-    "Al considerar solo los proyectos aprobados, el sector con mayor monto aprobado acumulado es ",
-    "{indicadores$sector_top_monto_aprobado}, mientras que el sector con mayor cantidad de aprobaciones es ",
-    "{indicadores$sector_top_cantidad_aprobado}. ",
-    "La provincia o región con mayor monto aprobado es {indicadores$provincia_top_monto_aprobado}. ",
-    "Los principales proyectos aprobados por monto son: {top_projects_aprobados_text}. ",
-    "El informe fue generado el {indicadores$fecha_actualizacion_fmt}; ",
-    "el archivo fuente registra como última modificación ",
+    "Como contexto, el universo total incluye {indicadores$n_proyectos_fmt} proyectos y suma ",
+    "{indicadores$monto_total_fmt} ({indicadores$monto_total_bill_fmt}). ",
+    "El informe fue generado el {indicadores$fecha_actualizacion_fmt}; el archivo fuente registra como última modificación ",
     "{indicadores$fecha_modificacion_archivo_fmt}."
   )
 }
@@ -320,15 +344,14 @@ kpi_card <- function(label, value, sublabel = NULL) {
   )
 }
 
-make_kpi_cards_total <- function(indicadores) {
+make_source_note <- function() {
   htmltools::div(
-    class = "kpi-grid",
-    kpi_card("Total de proyectos", indicadores$n_proyectos_fmt, "Todos los estados administrativos"),
-    kpi_card("Monto total", indicadores$monto_total_bill_fmt, "Monto informado acumulado"),
-    kpi_card("Monto promedio", indicadores$monto_promedio_fmt, "Promedio por proyecto"),
-    kpi_card("Monto mediano", indicadores$monto_mediano_fmt, "Mediana por proyecto"),
-    kpi_card("Sector líder", indicadores$sector_top_monto, "Mayor monto total"),
-    kpi_card("Provincia líder", indicadores$provincia_top_monto, "Mayor monto total")
+    class = "source-note-box",
+    htmltools::strong("Aclaración metodológica: "),
+    htmltools::span(
+      "Para los proyectos aprobados, se utilizó la información del Boletín Oficial y las empresas inferidas por Globaris. ",
+      "Para los proyectos en evaluación, se utilizó la información del dashboard de Globaris."
+    )
   )
 }
 
@@ -344,19 +367,43 @@ make_kpi_cards_aprobados <- function(indicadores) {
   )
 }
 
+make_kpi_cards_pendientes <- function(indicadores) {
+  htmltools::div(
+    class = "kpi-grid kpi-grid-pending",
+    kpi_card("Pendientes de aprobación", indicadores$n_pendientes_fmt, paste0(indicadores$prop_pendientes_fmt, " del total")),
+    kpi_card("Monto pendiente", indicadores$monto_pendiente_bill_fmt, paste0(indicadores$prop_monto_pendiente_fmt, " del monto total")),
+    kpi_card("Promedio pendiente", indicadores$monto_promedio_pendiente_fmt, "Promedio entre pendientes"),
+    kpi_card("Mediana pendiente", indicadores$monto_mediano_pendiente_fmt, "Mediana entre pendientes"),
+    kpi_card("Sector líder pendiente", indicadores$sector_top_monto_pendiente, "Mayor monto pendiente"),
+    kpi_card("Provincia líder pendiente", indicadores$provincia_top_monto_pendiente, "Mayor monto pendiente")
+  )
+}
+
+make_kpi_cards_total <- function(indicadores) {
+  htmltools::div(
+    class = "kpi-grid",
+    kpi_card("Total de proyectos", indicadores$n_proyectos_fmt, "Todos los estados administrativos"),
+    kpi_card("Monto total", indicadores$monto_total_bill_fmt, "Monto informado acumulado"),
+    kpi_card("Aprobados", indicadores$n_aprobados_fmt, indicadores$monto_aprobado_fmt),
+    kpi_card("Pendientes", indicadores$n_pendientes_fmt, indicadores$monto_pendiente_fmt),
+    kpi_card("Rechazados", indicadores$n_rechazados_fmt, indicadores$monto_rechazado_fmt),
+    kpi_card("Estado predominante", indicadores$estado_predominante, "Según cantidad de proyectos")
+  )
+}
+
 make_kpi_cards_estado <- function(indicadores) {
   htmltools::div(
     class = "kpi-grid kpi-grid-status",
     kpi_card("Aprobados", indicadores$n_aprobados_fmt, indicadores$monto_aprobado_fmt),
-    kpi_card("En evaluación", indicadores$n_evaluacion_fmt, indicadores$monto_evaluacion_fmt),
+    kpi_card("Pendientes", indicadores$n_pendientes_fmt, indicadores$monto_pendiente_fmt),
     kpi_card("Rechazados", indicadores$n_rechazados_fmt, indicadores$monto_rechazado_fmt),
     kpi_card("% aprobados", indicadores$prop_aprobados_fmt, "Participación en cantidad"),
-    kpi_card("% monto aprobado", indicadores$prop_monto_aprobado_fmt, "Participación en monto"),
-    kpi_card("Estado predominante", indicadores$estado_predominante, "Según cantidad de proyectos")
+    kpi_card("% pendientes", indicadores$prop_pendientes_fmt, "Participación en cantidad"),
+    kpi_card("% monto aprobado", indicadores$prop_monto_aprobado_fmt, "Participación en monto")
   )
 }
 
 # Compatibilidad con la versión anterior del dashboard.
 make_kpi_cards <- function(indicadores) {
-  make_kpi_cards_estado(indicadores)
+  make_kpi_cards_total(indicadores)
 }

@@ -27,54 +27,22 @@ htmltools::div(
   htmltools::h1("Monitor de Proyectos RIGI"),
   htmltools::p(
     class = "hero-subtitle",
-    "Informe interactivo basado exclusivamente en la solapa Proyectos del archivo RIGI_tracker_data_final_con_proyectos_integrados.xlsx. El tablero distingue explícitamente entre el universo total de proyectos y el subconjunto de proyectos aprobados."
+    "Informe interactivo basado exclusivamente en la solapa Proyectos. La lectura prioriza los proyectos aprobados y luego presenta los proyectos pendientes de aprobación o en evaluación."
   ),
   htmltools::div(
     class = "hero-meta-grid",
-    htmltools::div(
-      htmltools::span(class = "meta-label", "Informe generado el"),
-      htmltools::span(class = "meta-value", indicadores$fecha_actualizacion_fmt)
-    ),
-    htmltools::div(
-      htmltools::span(class = "meta-label", "Archivo fuente modificado"),
-      htmltools::span(class = "meta-value", indicadores$fecha_modificacion_archivo_fmt)
-    ),
-    htmltools::div(
-      htmltools::span(class = "meta-label", "Total de proyectos"),
-      htmltools::span(class = "meta-value", indicadores$n_proyectos_fmt)
-    ),
-    htmltools::div(
-      htmltools::span(class = "meta-label", "Proyectos aprobados"),
-      htmltools::span(class = "meta-value", indicadores$n_aprobados_fmt)
-    ),
-    htmltools::div(
-      htmltools::span(class = "meta-label", "Monto total informado"),
-      htmltools::span(class = "meta-value", indicadores$monto_total_bill_fmt)
-    ),
-    htmltools::div(
-      htmltools::span(class = "meta-label", "Monto aprobado"),
-      htmltools::span(class = "meta-value", indicadores$monto_aprobado_bill_fmt)
-    )
+    htmltools::div(htmltools::span(class = "meta-label", "Informe generado el"), htmltools::span(class = "meta-value", indicadores$fecha_actualizacion_fmt)),
+    htmltools::div(htmltools::span(class = "meta-label", "Archivo fuente modificado"), htmltools::span(class = "meta-value", indicadores$fecha_modificacion_archivo_fmt)),
+    htmltools::div(htmltools::span(class = "meta-label", "Proyectos aprobados"), htmltools::span(class = "meta-value", indicadores$n_aprobados_fmt)),
+    htmltools::div(htmltools::span(class = "meta-label", "Monto aprobado"), htmltools::span(class = "meta-value", indicadores$monto_aprobado_bill_fmt)),
+    htmltools::div(htmltools::span(class = "meta-label", "Pendientes de aprobación"), htmltools::span(class = "meta-value", indicadores$n_pendientes_fmt)),
+    htmltools::div(htmltools::span(class = "meta-label", "Monto pendiente"), htmltools::span(class = "meta-value", indicadores$monto_pendiente_bill_fmt))
   )
 )
 ```
 
-## Indicadores del universo total
-
-```{r kpis-total}
-make_kpi_cards_total(indicadores)
-```
-
-## Indicadores de proyectos aprobados
-
-```{r kpis-aprobados}
-make_kpi_cards_aprobados(indicadores)
-```
-
-## Estado administrativo
-
-```{r kpis-estado}
-make_kpi_cards_estado(indicadores)
+```{r source-note}
+make_source_note()
 ```
 
 ## Resumen ejecutivo
@@ -86,124 +54,200 @@ htmltools::div(
 )
 ```
 
-## Panorama general: total de proyectos
+# 1. Proyectos aprobados
 
-```{r estado}
-plot_estado(tablas$estado_tbl)
-```
-
-## Comparación: total vs. aprobados
-
-::: {.note-box}
-En esta sección, **Total** incluye todos los proyectos registrados en la solapa `Proyectos`, independientemente de su estado administrativo. **Aprobados** incluye solo los proyectos cuyo estado administrativo fue clasificado como `Aprobado`.
+::: {.section-intro}
+Esta sección es el bloque principal del informe. Muestra únicamente proyectos clasificados como **Aprobado** y prioriza estadísticas, montos, sectores, provincias, ranking de proyectos y cronología de aprobación/publicación.
 :::
 
-```{r comparacion-sector}
-plot_compare_total_aprobado(
-  total_tbl = tablas$sector_tbl,
-  aprobado_tbl = tablas$sector_tbl_aprobados,
-  label_col = "sector_simplificado",
-  title = "Monto por sector: total vs. aprobados",
-  subtitle = "Comparación entre el universo total y el subconjunto aprobado"
-)
+## Indicadores principales: aprobados
+
+```{r kpis-aprobados}
+make_kpi_cards_aprobados(indicadores)
 ```
 
-```{r comparacion-provincia}
-plot_compare_total_aprobado(
-  total_tbl = tablas$provincia_tbl,
-  aprobado_tbl = tablas$provincia_tbl_aprobados,
-  label_col = "provincia_simplificada",
-  title = "Monto por provincia o región: total vs. aprobados",
-  subtitle = "Las categorías múltiples o regionales se conservan como figuran en la base"
-)
-```
-
-## Sectores: universo total
-
-```{r sector-total}
-plot_bar_monto(
-  tablas$sector_tbl,
-  label_col = "sector_simplificado",
-  title = "Monto total por sector",
-  subtitle = "Universo total de proyectos. Millones de USD informados en la solapa Proyectos"
-)
-```
-
-```{r subsector-total}
-plot_bar_monto(
-  tablas$subsector_tbl,
-  label_col = "subsector_simplificado",
-  title = "Monto total por subsector",
-  subtitle = "Universo total de proyectos. Ranking de subsectores por monto acumulado",
-  top_n = 15
-)
-```
-
-## Sectores: proyectos aprobados
+## Monto aprobado por sector
 
 ```{r sector-aprobados}
 plot_bar_monto(
   tablas$sector_tbl_aprobados,
   label_col = "sector_simplificado",
   title = "Monto aprobado por sector",
-  subtitle = "Solo proyectos clasificados como aprobados",
+  subtitle = "Solo proyectos aprobados. Millones de USD",
   fill_color = bar_color_approved
 )
 ```
+
+## Monto aprobado por subsector
 
 ```{r subsector-aprobados}
 plot_bar_monto(
   tablas$subsector_tbl_aprobados,
   label_col = "subsector_simplificado",
   title = "Monto aprobado por subsector",
-  subtitle = "Solo proyectos clasificados como aprobados",
+  subtitle = "Solo proyectos aprobados. Ranking de subsectores por monto acumulado",
   top_n = 15,
   fill_color = bar_color_approved
 )
 ```
 
-## Provincias y regiones: universo total
-
-```{r provincias-total}
-plot_bar_monto(
-  tablas$provincia_tbl,
-  label_col = "provincia_simplificada",
-  title = "Monto total por provincia o región",
-  subtitle = "Universo total de proyectos. Las categorías múltiples o regionales se conservan como figuran en la base"
-)
-```
-
-## Provincias y regiones: proyectos aprobados
+## Monto aprobado por provincia o región
 
 ```{r provincias-aprobados}
 plot_bar_monto(
   tablas$provincia_tbl_aprobados,
   label_col = "provincia_simplificada",
   title = "Monto aprobado por provincia o región",
-  subtitle = "Solo proyectos clasificados como aprobados",
+  subtitle = "Solo proyectos aprobados. Las categorías regionales se conservan como figuran en la base",
   fill_color = bar_color_approved
 )
 ```
 
-## Principales proyectos: universo total
-
-```{r top-projects-total}
-plot_top_proyectos(
-  tablas$top_projects,
-  title = "Top 10 proyectos por monto: universo total",
-  subtitle = "Incluye todos los estados administrativos"
-)
-```
-
-## Principales proyectos: proyectos aprobados
+## Principales proyectos aprobados
 
 ```{r top-projects-aprobados}
 plot_top_proyectos(
   tablas$top_projects_aprobados,
   title = "Top 10 proyectos aprobados por monto",
-  subtitle = "Solo proyectos clasificados como aprobados",
+  subtitle = "Ranking del subconjunto aprobado",
   fill_color = bar_color_approved
 )
+```
+
+## Línea de tiempo de aprobados
+
+```{r timeline-aprobados}
+plot_timeline(tablas$timeline_aprobados_tbl, title = "Línea de tiempo: proyectos aprobados")
+```
+
+::: {.note-box}
+Para los proyectos aprobados se muestran fechas de presentación, adhesión RIGI y publicación en Boletín Oficial cuando están informadas. Hay `r indicadores$n_sin_fecha_presentacion_aprobados` proyectos aprobados sin fecha de presentación y `r indicadores$n_sin_fecha_publicacion_bo_aprobados` proyectos aprobados sin fecha de publicación en Boletín Oficial.
+:::
+
+## Base interactiva: aprobados
+
+```{r table-aprobados}
+datatable_proyectos(tablas$proyectos_aprobados)
+```
+
+# 2. Proyectos pendientes de aprobación
+
+::: {.section-intro .pending-intro}
+Esta sección muestra proyectos clasificados como **Pendiente de aprobación** o en evaluación. Estos registros se presentan por separado para no mezclarlos con los proyectos ya aprobados.
+:::
+
+## Indicadores principales: pendientes
+
+```{r kpis-pendientes}
+make_kpi_cards_pendientes(indicadores)
+```
+
+## Monto pendiente por sector
+
+```{r sector-pendientes}
+plot_bar_monto(
+  tablas$sector_tbl_pendientes,
+  label_col = "sector_simplificado",
+  title = "Monto pendiente de aprobación por sector",
+  subtitle = "Solo proyectos pendientes de aprobación o en evaluación",
+  fill_color = bar_color_pending
+)
+```
+
+## Monto pendiente por subsector
+
+```{r subsector-pendientes}
+plot_bar_monto(
+  tablas$subsector_tbl_pendientes,
+  label_col = "subsector_simplificado",
+  title = "Monto pendiente de aprobación por subsector",
+  subtitle = "Solo proyectos pendientes de aprobación o en evaluación",
+  top_n = 15,
+  fill_color = bar_color_pending
+)
+```
+
+## Monto pendiente por provincia o región
+
+```{r provincias-pendientes}
+plot_bar_monto(
+  tablas$provincia_tbl_pendientes,
+  label_col = "provincia_simplificada",
+  title = "Monto pendiente de aprobación por provincia o región",
+  subtitle = "Solo proyectos pendientes de aprobación o en evaluación",
+  fill_color = bar_color_pending
+)
+```
+
+## Principales proyectos pendientes
+
+```{r top-projects-pendientes}
+plot_top_proyectos(
+  tablas$top_projects_pendientes,
+  title = "Top 10 proyectos pendientes de aprobación por monto",
+  subtitle = "Ranking del subconjunto pendiente de aprobación",
+  fill_color = bar_color_pending
+)
+```
+
+## Línea de tiempo de pendientes
+
+```{r timeline-pendientes}
+plot_timeline(tablas$timeline_pendientes_tbl, title = "Línea de tiempo: proyectos pendientes de aprobación")
+```
+
+::: {.note-box}
+Para los proyectos pendientes se excluyen de la línea de tiempo los registros sin fecha informada. Hay `r indicadores$n_sin_fecha_presentacion_pendientes` proyectos pendientes sin fecha de presentación.
+:::
+
+## Base interactiva: pendientes
+
+```{r table-pendientes}
+datatable_proyectos(tablas$proyectos_pendientes)
+```
+
+# 3. Comparación entre aprobados y pendientes
+
+::: {.note-box}
+La comparación distingue explícitamente dos universos: **Aprobados** y **Pendientes**. No debe interpretarse el monto pendiente como monto aprobado.
+:::
+
+## Sector: aprobados vs. pendientes
+
+```{r comparacion-sector-aprobado-pendiente}
+plot_compare_aprobado_pendiente(
+  aprobado_tbl = tablas$sector_tbl_aprobados,
+  pendiente_tbl = tablas$sector_tbl_pendientes,
+  label_col = "sector_simplificado",
+  title = "Monto por sector: aprobados vs. pendientes",
+  subtitle = "Comparación entre proyectos aprobados y proyectos pendientes de aprobación"
+)
+```
+
+## Provincia o región: aprobados vs. pendientes
+
+```{r comparacion-provincia-aprobado-pendiente}
+plot_compare_aprobado_pendiente(
+  aprobado_tbl = tablas$provincia_tbl_aprobados,
+  pendiente_tbl = tablas$provincia_tbl_pendientes,
+  label_col = "provincia_simplificada",
+  title = "Monto por provincia o región: aprobados vs. pendientes",
+  subtitle = "Las categorías regionales se conservan como figuran en la base"
+)
+```
+
+# 4. Panorama general del universo total
+
+## Indicadores generales
+
+```{r kpis-total}
+make_kpi_cards_total(indicadores)
+```
+
+## Distribución por estado administrativo
+
+```{r estado}
+plot_estado(tablas$estado_tbl)
 ```
 
 ## Matriz sector-estado
@@ -212,19 +256,19 @@ plot_top_proyectos(
 plot_sector_estado(tablas$sector_estado_tbl)
 ```
 
-## Línea de tiempo
+## Línea de tiempo general
 
-```{r timeline}
+```{r timeline-general}
 plot_timeline(tablas$timeline_tbl)
 ```
 
 ::: {.note-box}
-Para la línea de tiempo se excluyen los registros sin fecha informada. En la base hay `r indicadores$n_sin_fecha_presentacion` proyectos sin fecha de presentación y `r indicadores$n_sin_fecha_aprobacion` proyectos sin fecha de aprobación.
+Para la línea de tiempo general se excluyen los registros sin fecha informada. En la base hay `r indicadores$n_sin_fecha_presentacion` proyectos sin fecha de presentación y `r indicadores$n_sin_fecha_aprobacion` proyectos sin fecha de aprobación/publicación.
 :::
 
-## Base interactiva
+## Base interactiva completa
 
-```{r table}
+```{r table-total}
 datatable_proyectos(proyectos)
 ```
 
@@ -232,12 +276,12 @@ datatable_proyectos(proyectos)
 
 ::: {.method-box}
 - El informe usa exclusivamente la solapa `Proyectos` del archivo `RIGI_tracker_data_final_con_proyectos_integrados.xlsx`.
-- El universo **Total** incluye todos los proyectos registrados, cualquiera sea su estado administrativo.
-- El universo **Aprobados** incluye únicamente los proyectos cuyo estado administrativo fue clasificado como `Aprobado`.
+- El bloque principal del informe corresponde a proyectos **aprobados**.
+- El segundo bloque corresponde a proyectos **pendientes de aprobación** o en evaluación.
+- Para los proyectos aprobados, se utilizó la información del Boletín Oficial y las empresas inferidas por Globaris.
+- Para los proyectos en evaluación, se utilizó la información del dashboard de Globaris.
 - Los montos se expresan en millones de dólares estadounidenses, salvo cuando se muestran en miles de millones de dólares.
 - No se imputan datos faltantes de montos, fechas, empresas, sectores ni provincias.
 - Las fechas no informadas, vacías o no parseables se tratan como `NA`.
-- La fecha de generación del informe se calcula con `Sys.Date()`.
-- La fecha de modificación del archivo fuente se obtiene con `file.info()`.
 - Para actualizar el sitio, reemplazá el Excel en `data/` y volvé a ejecutar `quarto render`.
 :::

@@ -38,69 +38,17 @@ Informe generado el: **`r indicadores$fecha_actualizacion_fmt`**
 Archivo fuente modificado: **`r indicadores$fecha_modificacion_archivo_fmt`**
 :::
 
-## Universo total de proyectos
-
 ```{r}
-make_kpi_cards_total(indicadores)
+make_source_note()
 ```
 
-## Proyectos aprobados
+## Foco principal: proyectos aprobados
 
 ```{r}
 make_kpi_cards_aprobados(indicadores)
 ```
 
-## Estado administrativo
-
-```{r}
-make_kpi_cards_estado(indicadores)
-```
-
-## Resumen ejecutivo
-
-```{r}
-htmltools::div(class = "summary-box", htmltools::p(resumen_ejecutivo))
-```
-
-## Distribución por estado
-
-```{r}
-plot_estado(tablas$estado_tbl)
-```
-
-## Sector: total vs. aprobados
-
-```{r}
-plot_compare_total_aprobado(
-  total_tbl = tablas$sector_tbl,
-  aprobado_tbl = tablas$sector_tbl_aprobados,
-  label_col = "sector_simplificado",
-  title = "Monto por sector: total vs. aprobados"
-)
-```
-
-## Provincia o región: total vs. aprobados
-
-```{r}
-plot_compare_total_aprobado(
-  total_tbl = tablas$provincia_tbl,
-  aprobado_tbl = tablas$provincia_tbl_aprobados,
-  label_col = "provincia_simplificada",
-  title = "Monto por provincia o región: total vs. aprobados"
-)
-```
-
-## Sectores principales: universo total
-
-```{r}
-plot_bar_monto(
-  tablas$sector_tbl,
-  label_col = "sector_simplificado",
-  title = "Monto total por sector"
-)
-```
-
-## Sectores principales: aprobados
+## Aprobados por sector
 
 ```{r}
 plot_bar_monto(
@@ -111,12 +59,14 @@ plot_bar_monto(
 )
 ```
 
-## Principales proyectos: universo total
+## Aprobados por provincia o región
 
 ```{r}
-plot_top_proyectos(
-  tablas$top_projects,
-  title = "Top 10 proyectos por monto: universo total"
+plot_bar_monto(
+  tablas$provincia_tbl_aprobados,
+  label_col = "provincia_simplificada",
+  title = "Monto aprobado por provincia o región",
+  fill_color = bar_color_approved
 )
 ```
 
@@ -130,25 +80,67 @@ plot_top_proyectos(
 )
 ```
 
-## Línea de tiempo
+## Línea de tiempo: aprobados
 
 ```{r}
-plot_timeline(tablas$timeline_tbl)
+plot_timeline(tablas$timeline_aprobados_tbl, title = "Línea de tiempo: proyectos aprobados")
 ```
 
-## Conclusiones
+## Segundo bloque: pendientes de aprobación
 
-- La base contiene **`r indicadores$n_proyectos_fmt`** proyectos registrados en la solapa `Proyectos`.
-- El monto total informado asciende a **`r indicadores$monto_total_bill_fmt`**.
-- Dentro del total, hay **`r indicadores$n_aprobados_fmt`** proyectos aprobados.
-- Los aprobados representan **`r indicadores$prop_aprobados_fmt`** de la cantidad de proyectos y **`r indicadores$prop_monto_aprobado_fmt`** del monto informado.
-- El monto aprobado asciende a **`r indicadores$monto_aprobado_bill_fmt`**.
-- En el universo total, el sector con mayor monto acumulado es **`r indicadores$sector_top_monto`**.
-- Entre los aprobados, el sector con mayor monto aprobado es **`r indicadores$sector_top_monto_aprobado`**.
+```{r}
+make_kpi_cards_pendientes(indicadores)
+```
 
-## Fecha de actualización
+## Pendientes por sector
 
-::: {.note-box}
-Informe generado el **`r indicadores$fecha_actualizacion_fmt`**.  
-Última modificación detectada del archivo fuente: **`r indicadores$fecha_modificacion_archivo_fmt`**.
-:::
+```{r}
+plot_bar_monto(
+  tablas$sector_tbl_pendientes,
+  label_col = "sector_simplificado",
+  title = "Monto pendiente de aprobación por sector",
+  fill_color = bar_color_pending
+)
+```
+
+## Principales proyectos pendientes
+
+```{r}
+plot_top_proyectos(
+  tablas$top_projects_pendientes,
+  title = "Top 10 proyectos pendientes de aprobación por monto",
+  fill_color = bar_color_pending
+)
+```
+
+## Aprobados vs. pendientes por sector
+
+```{r}
+plot_compare_aprobado_pendiente(
+  aprobado_tbl = tablas$sector_tbl_aprobados,
+  pendiente_tbl = tablas$sector_tbl_pendientes,
+  label_col = "sector_simplificado",
+  title = "Monto por sector: aprobados vs. pendientes"
+)
+```
+
+## Estado administrativo
+
+```{r}
+plot_estado(tablas$estado_tbl)
+```
+
+## Resumen ejecutivo
+
+```{r}
+htmltools::div(class = "summary-box", htmltools::p(resumen_ejecutivo))
+```
+
+## Cierre metodológico
+
+- El informe usa únicamente la solapa `Proyectos`.
+- Primero muestra proyectos **aprobados** y sus estadísticas.
+- Luego muestra proyectos **pendientes de aprobación**.
+- Los proyectos aprobados se documentan con Boletín Oficial y empresas inferidas por Globaris.
+- Los proyectos en evaluación usan información del dashboard de Globaris.
+- Última generación: **`r indicadores$fecha_actualizacion_fmt`**.
