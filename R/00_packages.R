@@ -1,6 +1,7 @@
 # Paquetes requeridos ---------------------------------------------------------
 # Este script carga las dependencias necesarias para renderizar el informe.
-# Si faltan paquetes en una ejecución local, intenta instalarlos automáticamente.
+# Si faltan paquetes, los instala automáticamente tanto en ejecución local
+# como en GitHub Actions.
 
 required_packages <- c(
   "tidyverse",
@@ -20,15 +21,16 @@ install_if_missing <- function(packages) {
   missing_packages <- packages[!packages %in% rownames(installed.packages())]
 
   if (length(missing_packages) > 0) {
-    if (identical(Sys.getenv("CI"), "true")) {
-      stop(
-        "Faltan paquetes en CI: ",
-        paste(missing_packages, collapse = ", "),
-        call. = FALSE
-      )
-    }
+    message(
+      "Instalando paquetes faltantes: ",
+      paste(missing_packages, collapse = ", ")
+    )
 
-    install.packages(missing_packages, repos = "https://cloud.r-project.org")
+    install.packages(
+      missing_packages,
+      repos = "https://cloud.r-project.org",
+      dependencies = TRUE
+    )
   }
 }
 
