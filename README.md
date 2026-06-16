@@ -1,87 +1,55 @@
 # Monitor de Proyectos RIGI
 
-Sitio web reproducible construido con **R + Quarto** para monitorear proyectos del RIGI a partir de la solapa `Proyectos` del archivo:
+Sitio web reproducible construido con **R + Quarto + GitHub Pages** a partir de la solapa `Proyectos` del archivo:
 
 ```text
 RIGI_tracker_data_final_con_proyectos_integrados.xlsx
 ```
 
-## Enfoque de esta versión
+## Cambios de esta versión
 
-La estructura del informe fue reorganizada para priorizar los proyectos aprobados:
+- El informe prioriza primero los **proyectos aprobados**.
+- Luego muestra los **proyectos pendientes de aprobación / en evaluación**.
+- Los montos se muestran en **millones de USD**, sin abreviaturas tipo `B`.
+- Se incorporan estadísticas y gráficos de **empleo directo e indirecto** para proyectos aprobados.
+- Las provincias múltiples separadas por `;` se tratan mediante **asignación proporcional** de monto, activos computables y empleo para evitar doble conteo territorial.
+- Se agregan descargas en `.xlsx` y `.csv` para:
+  - `Base interactiva: aprobados`
+  - `Base interactiva: pendientes`
+- En las descargas, las columnas `Monto (mill. USD)`, `Activos Computables (mill. USD)` y `Empleos (directos e indirectos)` se mantienen como numéricas.
+- Se mejoró la estética general del sitio y de los gráficos.
+- Los nombres largos de proyectos, sectores o provincias en los gráficos se muestran en hasta dos renglones para mejorar la legibilidad.
 
-1. Primero se muestran los **proyectos aprobados** y sus estadísticas.
-2. Luego se muestran los **proyectos pendientes de aprobación** o en evaluación.
-3. Finalmente se presenta una comparación entre aprobados y pendientes, más un panorama general del universo total.
-
-## Cambios incorporados
-
-- Se eliminó el uso de abreviaturas de billones: todos los montos se muestran en **millones de USD**.
-- Se agregaron estadísticas y gráficos de **empleo directo e indirecto** para proyectos aprobados.
-- Se generan archivos descargables para las bases interactivas:
-  - `downloads/base_interactiva_aprobados.xlsx`
-  - `downloads/base_interactiva_aprobados.csv`
-  - `downloads/base_interactiva_pendientes.xlsx`
-  - `downloads/base_interactiva_pendientes.csv`
-- En los archivos descargables, las columnas `Monto (mill. USD)`, `Activos Computables (mill. USD)` y `Empleos (directos e indirectos)` se exportan como numéricas.
-- Los proyectos con más de una provincia separada por `;` se desagregan para gráficos territoriales, asignando proporcionalmente monto, activos y empleo para evitar doble conteo.
-
-## Aclaración metodológica
+## Fuentes y aclaración metodológica
 
 Para los proyectos aprobados, se utilizó la información del Boletín Oficial y las empresas inferidas por Globaris. Para los proyectos en evaluación, se utilizó la información del dashboard de Globaris. Los datos de empleos directos e indirectos se obtuvieron de la página web del Ministerio de Economía.
 
-Fuentes:
+## Cómo correr localmente
 
-- Globaris: https://app.powerbi.com/view?r=eyJrIjoiNTFjY2E4NTYtOTVlNy00YmFiLWIwYmMtNWZkMjE4OTNhYmRiIiwidCI6IjNlMDUxM2Q2LTY4ZmEtNDE2ZS04ZGUxLTZjNWNkYzMxOWZmYSIsImMiOjR9&pageName=d1ee75596a51a9bde708
-- Ministerio de Economía - RIGI: https://www.argentina.gob.ar/economia/rigi
-
-## Estructura
-
-```text
-rigi-dashboard/
-├── data/
-│   └── RIGI_tracker_data_final_con_proyectos_integrados.xlsx
-├── downloads/
-│   └── archivos generados al renderizar
-├── R/
-│   ├── 00_packages.R
-│   ├── 01_load_data.R
-│   ├── 02_clean_data.R
-│   ├── 03_indicators.R
-│   └── 04_plots.R
-├── index.qmd
-├── presentation.qmd
-├── _quarto.yml
-├── styles.css
-├── README.md
-└── .github/
-    └── workflows/
-        └── render.yml
-```
-
-## Correr localmente
+Desde la carpeta del proyecto:
 
 ```bash
 quarto render
 quarto preview
 ```
 
-## Actualizar datos
+## Cómo actualizar el informe
 
-1. Reemplazar el archivo dentro de `data/`.
-2. Mantener el nombre `RIGI_tracker_data_final_con_proyectos_integrados.xlsx`.
-3. Verificar que la solapa siga llamándose `Proyectos`.
-4. Ejecutar:
+1. Reemplazar el archivo Excel en `data/RIGI_tracker_data_final_con_proyectos_integrados.xlsx`.
+2. Verificar que la solapa se siga llamando `Proyectos`.
+3. Ejecutar:
 
 ```bash
 quarto render
+quarto preview
 ```
 
-5. En GitHub Desktop, hacer commit y luego `Push origin`.
+4. Si está correcto, subir cambios con GitHub Desktop:
+   - escribir un mensaje en `Summary`;
+   - tocar `Commit to main`;
+   - tocar `Push origin`.
 
-## Publicación
-
-El sitio está preparado para publicarse con GitHub Pages mediante GitHub Actions. El resultado final está pensado para publicarse en:
+El sitio publicado debería actualizarse en:
 
 ```text
 https://lucassebaord29.github.io/RIGI/

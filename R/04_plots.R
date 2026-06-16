@@ -1,11 +1,108 @@
 # Visualizaciones y componentes HTML -----------------------------------------
 
-bar_color_approved <- "#0B4F6C"
-bar_color_pending <- "#F59E0B"
-bar_color_compare_approved <- "#0B4F6C"
-bar_color_compare_pending <- "#F59E0B"
-bar_color_employment <- "#145DA0"
-bar_color_neutral <- "#334155"
+# Paleta visual del dashboard: colores sobrios, contrastados y aptos para lectura en web.
+bar_color_approved <- "#2563EB"        # azul
+bar_color_pending <- "#F97316"         # naranja
+bar_color_compare_approved <- "#2563EB"
+bar_color_compare_pending <- "#F97316"
+bar_color_employment <- "#059669"      # verde
+bar_color_neutral <- "#475569"         # slate
+bar_color_timeline <- "#7C3AED"        # violeta
+bar_color_timeline_border <- "#4C1D95"
+
+# Helpers de estética ---------------------------------------------------------
+
+wrap_axis_label <- function(x, width = 28, max_lines = 2) {
+  x <- as.character(x)
+  x <- stringr::str_squish(x)
+  x[is.na(x) | x == ""] <- "s/d"
+
+  wrapped <- stringr::str_wrap(x, width = width)
+
+  vapply(wrapped, function(z) {
+    parts <- unlist(strsplit(z, "\n", fixed = TRUE), use.names = FALSE)
+    if (length(parts) <= max_lines) {
+      return(paste(parts, collapse = "\n"))
+    }
+
+    first_line <- parts[1]
+    rest <- paste(parts[-1], collapse = " ")
+    second_line <- stringr::str_trunc(rest, width = width, side = "right")
+    paste(first_line, second_line, sep = "\n")
+  }, character(1))
+}
+
+wrap_title <- function(x, width = 78) {
+  stringr::str_wrap(as.character(x), width = width)
+}
+
+format_month_year_es <- function(x) {
+  meses <- c("ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic")
+  x <- as.Date(x)
+  out <- paste0(meses[as.integer(format(x, "%m"))], "
+", format(x, "%Y"))
+  out[is.na(x)] <- ""
+  out
+}
+
+label_box_style <- list(
+  fill = "#FFFFFF",
+  color = "#0F172A",
+  label.size = 0,
+  alpha = 0.96
+)
+
+smart_left_margin <- function(labels, min_margin = 135, max_margin = 260) {
+  labels <- wrap_axis_label(labels)
+  max_chars <- max(nchar(gsub("\n", "", labels)), na.rm = TRUE)
+  margin <- min_margin + max(0, max_chars - 18) * 3.2
+  max(min_margin, min(max_margin, margin))
+}
+
+smart_height <- function(n, min_height = 380, per_row = 34, max_height = 760) {
+  n <- max(1, n)
+  min(max_height, max(min_height, 170 + n * per_row))
+}
+
+theme_rigi_chart <- function(base_size = 12) {
+  ggplot2::theme_minimal(base_size = base_size) +
+    ggplot2::theme(
+      text = ggplot2::element_text(color = "#1F2937"),
+      plot.title = ggplot2::element_text(face = "bold", size = 15.5, color = "#0F172A", margin = ggplot2::margin(b = 7)),
+      plot.subtitle = ggplot2::element_text(size = 10.5, color = "#64748B", margin = ggplot2::margin(b = 10), lineheight = 1.05),
+      axis.title.x = ggplot2::element_text(size = 10.5, color = "#475569", margin = ggplot2::margin(t = 8)),
+      axis.title.y = ggplot2::element_blank(),
+      axis.text.x = ggplot2::element_text(color = "#475569", size = 10),
+      axis.text.y = ggplot2::element_text(color = "#334155", size = 10.5, lineheight = 0.92),
+      panel.grid.major.y = ggplot2::element_blank(),
+      panel.grid.minor = ggplot2::element_blank(),
+      panel.grid.major.x = ggplot2::element_line(color = "#E2E8F0", linewidth = 0.35),
+      plot.background = ggplot2::element_rect(fill = "transparent", color = NA),
+      panel.background = ggplot2::element_rect(fill = "transparent", color = NA),
+      legend.position = "top",
+      legend.justification = "left",
+      legend.title = ggplot2::element_blank(),
+      legend.text = ggplot2::element_text(color = "#334155", size = 10.5),
+      plot.margin = ggplot2::margin(14, 16, 10, 12)
+    )
+}
+
+style_plotly <- function(p, margin_left = 150, margin_right = 35, margin_bottom = 65,
+                         margin_top = 88, height = NULL, showlegend = NULL) {
+  out <- plotly::ggplotly(p, tooltip = "text") |>
+    plotly::layout(
+      margin = list(l = margin_left, r = margin_right, b = margin_bottom, t = margin_top),
+      paper_bgcolor = "rgba(0,0,0,0)",
+      plot_bgcolor = "rgba(0,0,0,0)",
+      font = list(family = "Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif", color = "#1F2937"),
+      hoverlabel = list(bgcolor = "#FFFFFF", bordercolor = "#CBD5E1", font = list(color = "#0F172A"))
+    )
+
+  if (!is.null(height)) out <- out |> plotly::layout(height = height)
+  if (!is.null(showlegend)) out <- out |> plotly::layout(showlegend = showlegend)
+
+  out |> plotly::config(displayModeBar = FALSE, responsive = TRUE)
+}
 
 make_source_note <- function() {
   htmltools::div(
@@ -132,7 +229,8 @@ plot_bar_monto <- function(data, label_col, title, subtitle = NULL, fill_color =
     dplyr::filter(!is.na(monto_usd_mill)) |>
     dplyr::arrange(monto_usd_mill) |>
     dplyr::mutate(
-      label = forcats::fct_inorder(.data[[label_col]]),
+      label_original = .data[[label_col]],
+      label = forcats::fct_inorder(wrap_axis_label(.data[[label_col]], width = 30)),
       count_info = if (!is.na(count_col)) as.numeric(.data[[count_col]]) else NA_real_
     )
 
@@ -140,22 +238,30 @@ plot_bar_monto <- function(data, label_col, title, subtitle = NULL, fill_color =
     x = monto_usd_mill,
     y = label,
     text = paste0(
-      .data[[label_col]],
+      label_original,
       "<br>Monto: ", fmt_currency_mill(monto_usd_mill, accuracy = 1),
       "<br>Proyectos/incidencias: ", fmt_integer(count_info)
     )
   )) +
-    ggplot2::geom_col(fill = fill_color, width = 0.72) +
-    ggplot2::labs(title = title, subtitle = subtitle, x = "Millones de USD", y = NULL) +
-    ggplot2::theme_minimal(base_size = 12) +
-    ggplot2::theme(
-      plot.title = ggplot2::element_text(face = "bold", size = 15),
-      plot.subtitle = ggplot2::element_text(size = 10.5),
-      panel.grid.major.y = ggplot2::element_blank()
-    )
+    ggplot2::geom_col(fill = fill_color, width = 0.68, alpha = 0.97) +
+    ggplot2::geom_label(
+      ggplot2::aes(label = fmt_number(monto_usd_mill, accuracy = 1)),
+      hjust = -0.06,
+      size = 3.15,
+      fill = "#FFFFFF",
+      color = "#0F172A",
+      label.size = 0,
+      alpha = 0.96
+    ) +
+    ggplot2::scale_x_continuous(expand = ggplot2::expansion(mult = c(0, 0.24))) +
+    ggplot2::labs(title = wrap_title(title), subtitle = if (!is.null(subtitle)) wrap_title(subtitle, 95) else NULL, x = "Millones de USD", y = NULL) +
+    theme_rigi_chart()
 
-  plotly::ggplotly(p, tooltip = "text") |>
-    plotly::layout(margin = list(l = 130, r = 30, b = 60, t = 80))
+  style_plotly(
+    p,
+    margin_left = smart_left_margin(data_plot$label_original),
+    height = smart_height(nrow(data_plot))
+  )
 }
 
 plot_bar_empleo <- function(data, label_col, title, subtitle = NULL, fill_color = bar_color_employment) {
@@ -171,7 +277,8 @@ plot_bar_empleo <- function(data, label_col, title, subtitle = NULL, fill_color 
     dplyr::filter(!is.na(empleos_directos_indirectos)) |>
     dplyr::arrange(empleos_directos_indirectos) |>
     dplyr::mutate(
-      label = forcats::fct_inorder(.data[[label_col]]),
+      label_original = .data[[label_col]],
+      label = forcats::fct_inorder(wrap_axis_label(.data[[label_col]], width = 30)),
       count_info = if (!is.na(count_col)) as.numeric(.data[[count_col]]) else NA_real_
     )
 
@@ -179,22 +286,30 @@ plot_bar_empleo <- function(data, label_col, title, subtitle = NULL, fill_color 
     x = empleos_directos_indirectos,
     y = label,
     text = paste0(
-      .data[[label_col]],
+      label_original,
       "<br>Empleo: ", fmt_integer(empleos_directos_indirectos),
       "<br>Proyectos/incidencias: ", fmt_integer(count_info)
     )
   )) +
-    ggplot2::geom_col(fill = fill_color, width = 0.72) +
-    ggplot2::labs(title = title, subtitle = subtitle, x = "Empleos directos e indirectos", y = NULL) +
-    ggplot2::theme_minimal(base_size = 12) +
-    ggplot2::theme(
-      plot.title = ggplot2::element_text(face = "bold", size = 15),
-      plot.subtitle = ggplot2::element_text(size = 10.5),
-      panel.grid.major.y = ggplot2::element_blank()
-    )
+    ggplot2::geom_col(fill = fill_color, width = 0.68, alpha = 0.97) +
+    ggplot2::geom_label(
+      ggplot2::aes(label = fmt_integer(empleos_directos_indirectos)),
+      hjust = -0.06,
+      size = 3.15,
+      fill = "#FFFFFF",
+      color = "#0F172A",
+      label.size = 0,
+      alpha = 0.96
+    ) +
+    ggplot2::scale_x_continuous(expand = ggplot2::expansion(mult = c(0, 0.24))) +
+    ggplot2::labs(title = wrap_title(title), subtitle = if (!is.null(subtitle)) wrap_title(subtitle, 95) else NULL, x = "Empleos directos e indirectos", y = NULL) +
+    theme_rigi_chart()
 
-  plotly::ggplotly(p, tooltip = "text") |>
-    plotly::layout(margin = list(l = 160, r = 30, b = 60, t = 80))
+  style_plotly(
+    p,
+    margin_left = smart_left_margin(data_plot$label_original),
+    height = smart_height(nrow(data_plot))
+  )
 }
 
 plot_top_proyectos_monto <- function(data, title, fill_color = bar_color_neutral) {
@@ -203,7 +318,7 @@ plot_top_proyectos_monto <- function(data, title, fill_color = bar_color_neutral
   data_plot <- data |>
     dplyr::filter(!is.na(monto_usd_mill)) |>
     dplyr::arrange(monto_usd_mill) |>
-    dplyr::mutate(label = forcats::fct_inorder(proyecto))
+    dplyr::mutate(label = forcats::fct_inorder(wrap_axis_label(proyecto, width = 34)))
 
   p <- ggplot2::ggplot(data_plot, ggplot2::aes(
     x = monto_usd_mill,
@@ -216,16 +331,25 @@ plot_top_proyectos_monto <- function(data, title, fill_color = bar_color_neutral
       "<br>Monto: ", fmt_currency_mill(monto_usd_mill, accuracy = 1)
     )
   )) +
-    ggplot2::geom_col(fill = fill_color, width = 0.72) +
-    ggplot2::labs(title = title, x = "Millones de USD", y = NULL) +
-    ggplot2::theme_minimal(base_size = 12) +
-    ggplot2::theme(
-      plot.title = ggplot2::element_text(face = "bold", size = 15),
-      panel.grid.major.y = ggplot2::element_blank()
-    )
+    ggplot2::geom_col(fill = fill_color, width = 0.68, alpha = 0.97) +
+    ggplot2::geom_label(
+      ggplot2::aes(label = fmt_number(monto_usd_mill, accuracy = 1)),
+      hjust = -0.06,
+      size = 3.1,
+      fill = "#FFFFFF",
+      color = "#0F172A",
+      label.size = 0,
+      alpha = 0.96
+    ) +
+    ggplot2::scale_x_continuous(expand = ggplot2::expansion(mult = c(0, 0.24))) +
+    ggplot2::labs(title = wrap_title(title), x = "Millones de USD", y = NULL) +
+    theme_rigi_chart()
 
-  plotly::ggplotly(p, tooltip = "text") |>
-    plotly::layout(margin = list(l = 210, r = 30, b = 60, t = 80))
+  style_plotly(
+    p,
+    margin_left = smart_left_margin(data_plot$proyecto, min_margin = 175, max_margin = 310),
+    height = smart_height(nrow(data_plot), min_height = 430, per_row = 39)
+  )
 }
 
 plot_top_proyectos_empleo <- function(data, title, fill_color = bar_color_employment) {
@@ -234,7 +358,7 @@ plot_top_proyectos_empleo <- function(data, title, fill_color = bar_color_employ
   data_plot <- data |>
     dplyr::filter(!is.na(empleos_directos_indirectos)) |>
     dplyr::arrange(empleos_directos_indirectos) |>
-    dplyr::mutate(label = forcats::fct_inorder(proyecto))
+    dplyr::mutate(label = forcats::fct_inorder(wrap_axis_label(proyecto, width = 34)))
 
   p <- ggplot2::ggplot(data_plot, ggplot2::aes(
     x = empleos_directos_indirectos,
@@ -247,52 +371,73 @@ plot_top_proyectos_empleo <- function(data, title, fill_color = bar_color_employ
       "<br>Empleo: ", fmt_integer(empleos_directos_indirectos)
     )
   )) +
-    ggplot2::geom_col(fill = fill_color, width = 0.72) +
-    ggplot2::labs(title = title, x = "Empleos directos e indirectos", y = NULL) +
-    ggplot2::theme_minimal(base_size = 12) +
-    ggplot2::theme(
-      plot.title = ggplot2::element_text(face = "bold", size = 15),
-      panel.grid.major.y = ggplot2::element_blank()
-    )
+    ggplot2::geom_col(fill = fill_color, width = 0.68, alpha = 0.97) +
+    ggplot2::geom_label(
+      ggplot2::aes(label = fmt_integer(empleos_directos_indirectos)),
+      hjust = -0.06,
+      size = 3.1,
+      fill = "#FFFFFF",
+      color = "#0F172A",
+      label.size = 0,
+      alpha = 0.96
+    ) +
+    ggplot2::scale_x_continuous(expand = ggplot2::expansion(mult = c(0, 0.24))) +
+    ggplot2::labs(title = wrap_title(title), x = "Empleos directos e indirectos", y = NULL) +
+    theme_rigi_chart()
 
-  plotly::ggplotly(p, tooltip = "text") |>
-    plotly::layout(margin = list(l = 210, r = 30, b = 60, t = 80))
+  style_plotly(
+    p,
+    margin_left = smart_left_margin(data_plot$proyecto, min_margin = 175, max_margin = 310),
+    height = smart_height(nrow(data_plot), min_height = 430, per_row = 39)
+  )
 }
 
 plot_estado <- function(data) {
   if (nrow(data) == 0) return(empty_plot_message())
 
   data_plot <- data |>
-    dplyr::mutate(label = forcats::fct_reorder(estado_simplificado, n_proyectos))
+    dplyr::mutate(
+      label_original = estado_simplificado,
+      label = forcats::fct_reorder(wrap_axis_label(estado_simplificado, width = 28), n_proyectos)
+    )
 
   p <- ggplot2::ggplot(data_plot, ggplot2::aes(
     x = n_proyectos,
     y = label,
     text = paste0(
-      estado_simplificado,
+      label_original,
       "<br>Proyectos: ", fmt_integer(n_proyectos),
       "<br>Monto: ", fmt_currency_mill(monto_usd_mill, accuracy = 1)
     )
   )) +
-    ggplot2::geom_col(fill = "#145DA0", width = 0.72) +
+    ggplot2::geom_col(fill = "#0891B2", width = 0.68, alpha = 0.97) +
+    ggplot2::geom_label(
+      ggplot2::aes(label = fmt_integer(n_proyectos)),
+      hjust = -0.07,
+      size = 3.2,
+      fill = "#FFFFFF",
+      color = "#0F172A",
+      label.size = 0,
+      alpha = 0.96
+    ) +
+    ggplot2::scale_x_continuous(expand = ggplot2::expansion(mult = c(0, 0.24))) +
     ggplot2::labs(title = "Proyectos por estado administrativo", x = "Cantidad de proyectos", y = NULL) +
-    ggplot2::theme_minimal(base_size = 12) +
-    ggplot2::theme(plot.title = ggplot2::element_text(face = "bold", size = 15))
+    theme_rigi_chart()
 
-  plotly::ggplotly(p, tooltip = "text")
+  style_plotly(p, margin_left = smart_left_margin(data_plot$label_original), height = smart_height(nrow(data_plot), min_height = 320))
 }
 
 plot_compare_aprobado_pendiente <- function(aprobado_tbl, pendiente_tbl, label_col, title) {
   data_plot <- dplyr::bind_rows(
-    aprobado_tbl |> dplyr::transmute(label = .data[[label_col]], estado = "Aprobado", monto_usd_mill),
-    pendiente_tbl |> dplyr::transmute(label = .data[[label_col]], estado = "Pendiente / en evaluación", monto_usd_mill)
+    aprobado_tbl |> dplyr::transmute(label_original = .data[[label_col]], estado = "Aprobado", monto_usd_mill),
+    pendiente_tbl |> dplyr::transmute(label_original = .data[[label_col]], estado = "Pendiente / en evaluación", monto_usd_mill)
   ) |>
     dplyr::filter(!is.na(monto_usd_mill)) |>
-    dplyr::group_by(label) |>
+    dplyr::group_by(label_original) |>
     dplyr::mutate(total_label = sum(monto_usd_mill, na.rm = TRUE)) |>
     dplyr::ungroup() |>
     dplyr::arrange(total_label) |>
-    dplyr::mutate(label = forcats::fct_inorder(label))
+    dplyr::mutate(label = forcats::fct_inorder(wrap_axis_label(label_original, width = 30)))
 
   if (nrow(data_plot) == 0) return(empty_plot_message())
 
@@ -300,38 +445,63 @@ plot_compare_aprobado_pendiente <- function(aprobado_tbl, pendiente_tbl, label_c
     x = monto_usd_mill,
     y = label,
     fill = estado,
-    text = paste0(label, "<br>", estado, "<br>Monto: ", fmt_currency_mill(monto_usd_mill, accuracy = 1))
+    text = paste0(label_original, "<br>", estado, "<br>Monto: ", fmt_currency_mill(monto_usd_mill, accuracy = 1))
   )) +
-    ggplot2::geom_col(position = "dodge", width = 0.72) +
+    ggplot2::geom_col(position = ggplot2::position_dodge(width = 0.72), width = 0.62, alpha = 0.97) +
+    ggplot2::geom_label(
+      ggplot2::aes(label = fmt_number(monto_usd_mill, accuracy = 1)),
+      position = ggplot2::position_dodge(width = 0.72),
+      hjust = -0.07,
+      size = 2.85,
+      fill = "#FFFFFF",
+      color = "#0F172A",
+      label.size = 0,
+      alpha = 0.96,
+      show.legend = FALSE
+    ) +
     ggplot2::scale_fill_manual(values = c("Aprobado" = bar_color_compare_approved, "Pendiente / en evaluación" = bar_color_compare_pending)) +
-    ggplot2::labs(title = title, x = "Millones de USD", y = NULL, fill = NULL) +
-    ggplot2::theme_minimal(base_size = 12) +
-    ggplot2::theme(plot.title = ggplot2::element_text(face = "bold", size = 15))
+    ggplot2::scale_x_continuous(expand = ggplot2::expansion(mult = c(0, 0.30))) +
+    ggplot2::labs(title = wrap_title(title), x = "Millones de USD", y = NULL, fill = NULL) +
+    theme_rigi_chart()
 
-  plotly::ggplotly(p, tooltip = "text") |>
-    plotly::layout(margin = list(l = 160, r = 30, b = 60, t = 80))
+  style_plotly(
+    p,
+    margin_left = smart_left_margin(data_plot$label_original),
+    height = smart_height(dplyr::n_distinct(data_plot$label_original), min_height = 430, per_row = 38)
+  )
 }
 
 plot_compare_counts_montos <- function(ind) {
   data_plot <- tibble::tibble(
-    grupo = c("Aprobados", "Pendientes / en evaluación"),
+    grupo_original = c("Aprobados", "Pendientes / en evaluación"),
     proyectos = c(ind$n_aprobados, ind$n_pendientes),
     monto_usd_mill = c(ind$monto_aprobado, ind$monto_pendiente)
-  )
+  ) |>
+    dplyr::mutate(grupo = wrap_axis_label(grupo_original, width = 18))
 
   p <- ggplot2::ggplot(data_plot, ggplot2::aes(
     x = grupo,
     y = monto_usd_mill,
-    fill = grupo,
-    text = paste0(grupo, "<br>Proyectos: ", fmt_integer(proyectos), "<br>Monto: ", fmt_currency_mill(monto_usd_mill, accuracy = 1))
+    fill = grupo_original,
+    text = paste0(grupo_original, "<br>Proyectos: ", fmt_integer(proyectos), "<br>Monto: ", fmt_currency_mill(monto_usd_mill, accuracy = 1))
   )) +
-    ggplot2::geom_col(width = 0.62) +
+    ggplot2::geom_col(width = 0.58, alpha = 0.97) +
+    ggplot2::geom_label(
+      ggplot2::aes(label = fmt_number(monto_usd_mill, accuracy = 1)),
+      vjust = -0.25,
+      size = 3.3,
+      fill = "#FFFFFF",
+      color = "#0F172A",
+      label.size = 0,
+      alpha = 0.96
+    ) +
     ggplot2::scale_fill_manual(values = c("Aprobados" = bar_color_compare_approved, "Pendientes / en evaluación" = bar_color_compare_pending)) +
+    ggplot2::scale_y_continuous(expand = ggplot2::expansion(mult = c(0, 0.16))) +
     ggplot2::labs(title = "Monto informado: aprobados vs. pendientes", x = NULL, y = "Millones de USD") +
-    ggplot2::theme_minimal(base_size = 12) +
-    ggplot2::theme(legend.position = "none", plot.title = ggplot2::element_text(face = "bold", size = 15))
+    theme_rigi_chart() +
+    ggplot2::theme(legend.position = "none")
 
-  plotly::ggplotly(p, tooltip = "text")
+  style_plotly(p, margin_left = 60, height = 410, showlegend = FALSE)
 }
 
 plot_timeline <- function(data, date_col = "fecha_aprobacion", title = "Línea de tiempo") {
@@ -340,7 +510,10 @@ plot_timeline <- function(data, date_col = "fecha_aprobacion", title = "Línea d
   data_plot <- data |>
     dplyr::filter(!is.na(.data[[date_col]])) |>
     dplyr::arrange(.data[[date_col]]) |>
-    dplyr::mutate(y_pos = dplyr::row_number())
+    dplyr::mutate(
+      y_pos = dplyr::row_number(),
+      monto_label = fmt_number(monto_usd_mill, accuracy = 1)
+    )
 
   p <- ggplot2::ggplot(data_plot, ggplot2::aes(
     x = .data[[date_col]],
@@ -350,20 +523,48 @@ plot_timeline <- function(data, date_col = "fecha_aprobacion", title = "Línea d
       proyecto,
       "<br>Fecha: ", fmt_date(.data[[date_col]]),
       "<br>Estado: ", estado_simplificado,
-      "<br>Monto: ", fmt_currency_mill(monto_usd_mill, accuracy = 1)
+      "<br>Monto: ", fmt_currency_mill(monto_usd_mill, accuracy = 1),
+      "<br>Tamaño del punto: monto del proyecto"
     )
   )) +
-    ggplot2::geom_point(color = "#0B4F6C", alpha = 0.85) +
-    ggplot2::labs(title = title, x = NULL, y = NULL) +
-    ggplot2::theme_minimal(base_size = 12) +
+    ggplot2::geom_point(color = bar_color_timeline, fill = bar_color_timeline, alpha = 0.78) +
+    ggplot2::geom_label(
+      ggplot2::aes(label = monto_label),
+      nudge_y = 0.24,
+      size = 2.75,
+      fill = "#FFFFFF",
+      color = "#0F172A",
+      label.size = 0,
+      alpha = 0.94,
+      show.legend = FALSE
+    ) +
+    ggplot2::scale_size_continuous(
+      range = c(5, 18),
+      name = "Monto del proyecto\n(millones de USD)",
+      labels = function(x) fmt_number(x, accuracy = 1)
+    ) +
+    ggplot2::scale_x_date(
+      date_breaks = "1 month",
+      labels = format_month_year_es,
+      expand = ggplot2::expansion(mult = c(0.04, 0.08))
+    ) +
+    ggplot2::labs(
+      title = wrap_title(title),
+      subtitle = "Lectura mensual: cada punto representa un proyecto; el tamaño del punto indica el monto informado del proyecto.",
+      x = "Mes",
+      y = NULL
+    ) +
+    theme_rigi_chart() +
     ggplot2::theme(
+      axis.text.x = ggplot2::element_text(size = 9.5, lineheight = 0.95),
       axis.text.y = ggplot2::element_blank(),
       panel.grid.major.y = ggplot2::element_blank(),
-      plot.title = ggplot2::element_text(face = "bold", size = 15)
+      legend.position = "right",
+      legend.text = ggplot2::element_text(size = 9.5),
+      legend.title = ggplot2::element_text(size = 9.5, face = "bold", color = "#334155")
     )
 
-  plotly::ggplotly(p, tooltip = "text") |>
-    plotly::layout(showlegend = FALSE)
+  style_plotly(p, margin_left = 55, margin_right = 118, margin_bottom = 86, height = 460, showlegend = TRUE)
 }
 
 make_datatable <- function(data, caption = NULL) {
@@ -411,6 +612,7 @@ make_datatable <- function(data, caption = NULL) {
     rownames = FALSE,
     filter = "top",
     extensions = c("Buttons"),
+    class = "stripe hover order-column compact",
     options = list(
       pageLength = 10,
       scrollX = TRUE,
