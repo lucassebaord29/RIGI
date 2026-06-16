@@ -1,6 +1,9 @@
 project:
   type: website
   output-dir: _site
+  resources:
+    - downloads/*.xlsx
+    - downloads/*.csv
 
 website:
   title: "Monitor de Proyectos RIGI"

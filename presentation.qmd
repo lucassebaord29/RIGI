@@ -1,30 +1,33 @@
 ---
 title: "Monitor de Proyectos RIGI"
-subtitle: "Presentación ejecutiva basada en la solapa Proyectos"
+subtitle: "Aprobados y pendientes de aprobación"
 format:
   revealjs:
     theme: simple
-    css: styles.css
     slide-number: true
-    scrollable: true
-    transition: fade
+    chalkboard: false
+    preview-links: auto
+    css: styles.css
 execute:
   echo: false
   warning: false
   message: false
 ---
 
-```{r setup, include=FALSE}
+```{r setup}
 source("R/00_packages.R")
 source("R/01_load_data.R")
 source("R/02_clean_data.R")
 source("R/03_indicators.R")
 source("R/04_plots.R")
 
-raw_proyectos <- load_proyectos()
-proyectos <- clean_proyectos(raw_proyectos)
-tablas <- make_indicator_tables(proyectos)
-indicadores <- make_indicators(proyectos)
+raw_data <- load_proyectos()
+proyectos <- clean_proyectos(raw_data)
+proyectos_prov <- expand_provincias(proyectos)
+file_update_time <- get_file_update_time()
+indicadores <- make_indicators(proyectos, proyectos_prov, file_update_time)
+tablas <- make_tables(proyectos, proyectos_prov)
+downloads <- create_download_files(proyectos)
 resumen_ejecutivo <- make_summary_text(indicadores, tablas)
 ```
 
@@ -32,7 +35,7 @@ resumen_ejecutivo <- make_summary_text(indicadores, tablas)
 
 ::: {.presentation-cover}
 **Informe interactivo y presentación reproducible**  
-Fuente: solapa `Proyectos` del archivo Excel del tracker RIGI.
+Fuente: solapa `Proyectos` del archivo Excel actualizado.
 
 Informe generado el: **`r indicadores$fecha_actualizacion_fmt`**  
 Archivo fuente modificado: **`r indicadores$fecha_modificacion_archivo_fmt`**
@@ -42,13 +45,39 @@ Archivo fuente modificado: **`r indicadores$fecha_modificacion_archivo_fmt`**
 make_source_note()
 ```
 
-## Foco principal: proyectos aprobados
+## Foco principal: aprobados
 
 ```{r}
 make_kpi_cards_aprobados(indicadores)
 ```
 
-## Aprobados por sector
+## Empleo en proyectos aprobados
+
+```{r}
+make_kpi_cards_empleo_aprobado(indicadores)
+```
+
+## Aprobados por monto
+
+```{r}
+plot_top_proyectos_monto(
+  tablas$top_projects_aprobados,
+  title = "Top 10 proyectos aprobados por monto",
+  fill_color = bar_color_approved
+)
+```
+
+## Aprobados por empleo
+
+```{r}
+plot_top_proyectos_empleo(
+  tablas$top_empleos_aprobados,
+  title = "Top 10 proyectos aprobados por empleo directo e indirecto",
+  fill_color = bar_color_employment
+)
+```
+
+## Monto aprobado por sector
 
 ```{r}
 plot_bar_monto(
@@ -59,75 +88,48 @@ plot_bar_monto(
 )
 ```
 
-## Aprobados por provincia o región
+## Empleo aprobado por sector
 
 ```{r}
-plot_bar_monto(
-  tablas$provincia_tbl_aprobados,
-  label_col = "provincia_simplificada",
-  title = "Monto aprobado por provincia o región",
-  fill_color = bar_color_approved
+plot_bar_empleo(
+  tablas$empleo_sector_aprobados,
+  label_col = "sector_simplificado",
+  title = "Empleo informado en proyectos aprobados por sector",
+  fill_color = bar_color_employment
 )
 ```
 
-## Principales proyectos aprobados
-
-```{r}
-plot_top_proyectos(
-  tablas$top_projects_aprobados,
-  title = "Top 10 proyectos aprobados por monto",
-  fill_color = bar_color_approved
-)
-```
-
-## Línea de tiempo: aprobados
-
-```{r}
-plot_timeline(tablas$timeline_aprobados_tbl, title = "Línea de tiempo: proyectos aprobados")
-```
-
-## Segundo bloque: pendientes de aprobación
+## Pendientes / en evaluación
 
 ```{r}
 make_kpi_cards_pendientes(indicadores)
 ```
 
-## Pendientes por sector
+## Pendientes por monto
 
 ```{r}
-plot_bar_monto(
-  tablas$sector_tbl_pendientes,
-  label_col = "sector_simplificado",
-  title = "Monto pendiente de aprobación por sector",
-  fill_color = bar_color_pending
-)
-```
-
-## Principales proyectos pendientes
-
-```{r}
-plot_top_proyectos(
+plot_top_proyectos_monto(
   tablas$top_projects_pendientes,
-  title = "Top 10 proyectos pendientes de aprobación por monto",
+  title = "Top 10 proyectos pendientes / en evaluación por monto",
   fill_color = bar_color_pending
 )
 ```
 
-## Aprobados vs. pendientes por sector
+## Comparación aprobados vs. pendientes
+
+```{r}
+plot_compare_counts_montos(indicadores)
+```
+
+## Comparación por sector
 
 ```{r}
 plot_compare_aprobado_pendiente(
   aprobado_tbl = tablas$sector_tbl_aprobados,
   pendiente_tbl = tablas$sector_tbl_pendientes,
   label_col = "sector_simplificado",
-  title = "Monto por sector: aprobados vs. pendientes"
+  title = "Monto por sector: aprobados vs. pendientes / en evaluación"
 )
-```
-
-## Estado administrativo
-
-```{r}
-plot_estado(tablas$estado_tbl)
 ```
 
 ## Resumen ejecutivo
@@ -136,11 +138,11 @@ plot_estado(tablas$estado_tbl)
 htmltools::div(class = "summary-box", htmltools::p(resumen_ejecutivo))
 ```
 
-## Cierre metodológico
+## Notas metodológicas
 
-- El informe usa únicamente la solapa `Proyectos`.
-- Primero muestra proyectos **aprobados** y sus estadísticas.
-- Luego muestra proyectos **pendientes de aprobación**.
-- Los proyectos aprobados se documentan con Boletín Oficial y empresas inferidas por Globaris.
-- Los proyectos en evaluación usan información del dashboard de Globaris.
-- Última generación: **`r indicadores$fecha_actualizacion_fmt`**.
+- Se usa exclusivamente la solapa `Proyectos`.
+- Primero se presentan proyectos aprobados; luego pendientes / en evaluación.
+- Montos y activos computables se expresan en millones de USD.
+- Los empleos son directos e indirectos.
+- En proyectos multiprovinciales, monto, activos y empleo se asignan proporcionalmente entre provincias para evitar doble conteo.
+- Fuentes: Boletín Oficial, Globaris y Ministerio de Economía.

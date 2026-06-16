@@ -12,7 +12,8 @@ required_packages <- c(
   "glue",
   "scales",
   "htmltools",
-  "forcats"
+  "forcats",
+  "writexl"
 )
 
 install_if_missing <- function(packages) {

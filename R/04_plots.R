@@ -1,343 +1,424 @@
-# Visualizaciones -------------------------------------------------------------
+# Visualizaciones y componentes HTML -----------------------------------------
 
-rigi_colors <- c(
-  "Aprobado" = "#0B4F6C",
-  "Pendiente de aprobación" = "#F9A03F",
-  "Rechazado" = "#A23E48",
-  "Otros" = "#6C757D",
-  "No informado" = "#ADB5BD"
-)
-
-scope_colors <- c(
-  "Aprobados" = "#0B4F6C",
-  "Pendientes" = "#F9A03F",
-  "Total" = "#145DA0"
-)
-
-bar_color <- "#145DA0"
-bar_color_alt <- "#2E8BC0"
 bar_color_approved <- "#0B4F6C"
-bar_color_pending <- "#F9A03F"
+bar_color_pending <- "#F59E0B"
+bar_color_compare_approved <- "#0B4F6C"
+bar_color_compare_pending <- "#F59E0B"
+bar_color_employment <- "#145DA0"
+bar_color_neutral <- "#334155"
 
-rigi_theme <- function() {
-  ggplot2::theme_minimal(base_size = 12) +
-    ggplot2::theme(
-      plot.title = ggplot2::element_text(face = "bold", size = 14, color = "#1F2937"),
-      plot.subtitle = ggplot2::element_text(color = "#4B5563"),
-      axis.title = ggplot2::element_text(color = "#374151"),
-      axis.text = ggplot2::element_text(color = "#374151"),
-      panel.grid.major.y = ggplot2::element_blank(),
-      panel.grid.minor = ggplot2::element_blank(),
-      legend.title = ggplot2::element_blank(),
-      plot.margin = ggplot2::margin(10, 15, 10, 15)
+make_source_note <- function() {
+  htmltools::div(
+    class = "source-note-box",
+    htmltools::strong("Aclaración metodológica: "),
+    "Para los proyectos aprobados, se utilizó la información del Boletín Oficial y las empresas inferidas por ",
+    htmltools::a(
+      "Globaris",
+      href = "https://app.powerbi.com/view?r=eyJrIjoiNTFjY2E4NTYtOTVlNy00YmFiLWIwYmMtNWZkMjE4OTNhYmRiIiwidCI6IjNlMDUxM2Q2LTY4ZmEtNDE2ZS04ZGUxLTZjNWNkYzMxOWZmYSIsImMiOjR9&pageName=d1ee75596a51a9bde708",
+      target = "_blank"
+    ),
+    ". Para los proyectos en evaluación, se utilizó la información del dashboard de ",
+    htmltools::a(
+      "Globaris",
+      href = "https://app.powerbi.com/view?r=eyJrIjoiNTFjY2E4NTYtOTVlNy00YmFiLWIwYmMtNWZkMjE4OTNhYmRiIiwidCI6IjNlMDUxM2Q2LTY4ZmEtNDE2ZS04ZGUxLTZjNWNkYzMxOWZmYSIsImMiOjR9&pageName=d1ee75596a51a9bde708",
+      target = "_blank"
+    ),
+    ". Los datos de empleos directos e indirectos se obtuvieron de la página web del ",
+    htmltools::a(
+      "Ministerio de Economía",
+      href = "https://www.argentina.gob.ar/economia/rigi",
+      target = "_blank"
+    ),
+    "."
+  )
+}
+
+make_province_note <- function() {
+  htmltools::div(
+    class = "note-box",
+    "Cuando un proyecto tiene más de una provincia separada por ';', el monto, los activos computables y el empleo se asignan proporcionalmente entre las provincias informadas para evitar doble conteo."
+  )
+}
+
+make_download_links <- function(type = c("aprobados", "pendientes")) {
+  type <- match.arg(type)
+  label <- if (type == "aprobados") "aprobados" else "pendientes"
+  htmltools::div(
+    class = "download-box",
+    htmltools::strong(paste0("Descargas de la base de ", label, ": ")),
+    htmltools::a(
+      "Excel",
+      href = paste0("downloads/base_interactiva_", type, ".xlsx"),
+      target = "_blank",
+      class = "download-button"
+    ),
+    htmltools::a(
+      "CSV",
+      href = paste0("downloads/base_interactiva_", type, ".csv"),
+      target = "_blank",
+      class = "download-button"
     )
+  )
 }
 
-empty_plot <- function(message = "No hay datos disponibles") {
-  plotly::plot_ly() |>
-    plotly::layout(
-      title = list(text = message),
-      xaxis = list(visible = FALSE),
-      yaxis = list(visible = FALSE)
-    )
+make_kpi_card <- function(label, value, sublabel = NULL) {
+  htmltools::div(
+    class = "kpi-card",
+    htmltools::div(class = "kpi-label", label),
+    htmltools::div(class = "kpi-value", value),
+    if (!is.null(sublabel)) htmltools::div(class = "kpi-sublabel", sublabel)
+  )
 }
 
-wrap_label <- function(x, width = 36) {
-  stringr::str_wrap(as.character(x), width = width)
+make_kpi_cards_aprobados <- function(ind) {
+  htmltools::div(
+    class = "kpi-grid kpi-grid-approved",
+    make_kpi_card("Proyectos aprobados", fmt_integer(ind$n_aprobados), "Cantidad de proyectos"),
+    make_kpi_card("Monto aprobado", fmt_currency_mill(ind$monto_aprobado, accuracy = 1), "Millones de USD"),
+    make_kpi_card("Activos computables aprobados", fmt_currency_mill(ind$activos_aprobados, accuracy = 1), "Millones de USD"),
+    make_kpi_card("Empleo informado", fmt_integer(ind$empleos_aprobados), "Directos e indirectos"),
+    make_kpi_card("Monto promedio aprobado", fmt_currency_mill(ind$monto_promedio_aprobado, accuracy = 1), "Por proyecto aprobado"),
+    make_kpi_card("Monto mediano aprobado", fmt_currency_mill(ind$monto_mediano_aprobado, accuracy = 1), "Por proyecto aprobado")
+  )
 }
 
-plot_estado <- function(estado_tbl) {
-  if (nrow(estado_tbl) == 0) return(empty_plot())
-
-  data <- estado_tbl |>
-    dplyr::mutate(
-      estado_simplificado = forcats::fct_reorder(estado_simplificado, n_proyectos),
-      hover = glue::glue(
-        "Estado: {estado_simplificado}<br>",
-        "Proyectos: {fmt_number(n_proyectos, accuracy = 1)}<br>",
-        "Monto: {fmt_currency_mill(monto_usd_mill, accuracy = 1)}"
-      )
-    )
-
-  p <- ggplot2::ggplot(
-    data,
-    ggplot2::aes(x = estado_simplificado, y = n_proyectos, fill = estado_simplificado, text = hover)
-  ) +
-    ggplot2::geom_col(width = 0.68) +
-    ggplot2::geom_text(ggplot2::aes(label = n_proyectos), hjust = -0.2, size = 3.6) +
-    ggplot2::coord_flip() +
-    ggplot2::scale_fill_manual(values = rigi_colors, na.value = "#ADB5BD") +
-    ggplot2::labs(
-      title = "Proyectos por estado administrativo",
-      subtitle = "Distingue aprobados, pendientes de aprobación y otros estados",
-      x = NULL,
-      y = "Cantidad de proyectos"
-    ) +
-    rigi_theme()
-
-  plotly::ggplotly(p, tooltip = "text") |>
-    plotly::layout(showlegend = FALSE, margin = list(l = 120, r = 30, t = 70, b = 45))
+make_kpi_cards_empleo_aprobado <- function(ind) {
+  htmltools::div(
+    class = "kpi-grid kpi-grid-employment",
+    make_kpi_card("Empleo total aprobado", fmt_integer(ind$empleos_aprobados), "Directos e indirectos"),
+    make_kpi_card("Empleo promedio aprobado", fmt_integer(ind$empleos_promedio_aprobados), "Por proyecto aprobado"),
+    make_kpi_card("Empleo mediano aprobado", fmt_integer(ind$empleos_mediana_aprobados), "Por proyecto aprobado"),
+    make_kpi_card("Proyecto con mayor empleo", ind$empleo_top_proyecto, "Entre aprobados"),
+    make_kpi_card("Sector con mayor empleo", ind$empleo_top_sector, "Entre aprobados"),
+    make_kpi_card("Provincia con mayor empleo", ind$empleo_top_provincia, "Asignación proporcional si es multiprovincial")
+  )
 }
 
-plot_bar_monto <- function(data, label_col, title, subtitle = NULL, top_n = NULL, fill_color = bar_color) {
-  if (nrow(data) == 0 || all(is.na(data$monto_usd_mill))) return(empty_plot())
+make_kpi_cards_pendientes <- function(ind) {
+  htmltools::div(
+    class = "kpi-grid kpi-grid-pending",
+    make_kpi_card("Proyectos pendientes/en evaluación", fmt_integer(ind$n_pendientes), "Cantidad de proyectos"),
+    make_kpi_card("Monto pendiente/en evaluación", fmt_currency_mill(ind$monto_pendiente, accuracy = 1), "Millones de USD"),
+    make_kpi_card("Activos computables pendientes", fmt_currency_mill(ind$activos_pendientes, accuracy = 1), "Millones de USD"),
+    make_kpi_card("Monto promedio pendiente", fmt_currency_mill(ind$monto_promedio_pendiente, accuracy = 1), "Por proyecto pendiente"),
+    make_kpi_card("Monto mediano pendiente", fmt_currency_mill(ind$monto_mediano_pendiente, accuracy = 1), "Por proyecto pendiente")
+  )
+}
 
-  plot_data <- data |>
+make_kpi_cards_total <- function(ind) {
+  htmltools::div(
+    class = "kpi-grid kpi-grid-status",
+    make_kpi_card("Total de proyectos", fmt_integer(ind$n_total), "Universo de la base"),
+    make_kpi_card("Monto total informado", fmt_currency_mill(ind$monto_total, accuracy = 1), "Millones de USD"),
+    make_kpi_card("Aprobados / total", fmt_pct(ind$participacion_proyectos_aprobados), "Participación en cantidad"),
+    make_kpi_card("Monto aprobado / total", fmt_pct(ind$participacion_monto_aprobado), "Participación en monto")
+  )
+}
+
+empty_plot_message <- function(message = "No hay datos disponibles para este gráfico.") {
+  htmltools::div(class = "empty-plot-box", message)
+}
+
+plot_bar_monto <- function(data, label_col, title, subtitle = NULL, fill_color = bar_color_neutral) {
+  if (nrow(data) == 0 || all(is.na(data$monto_usd_mill))) return(empty_plot_message())
+
+  count_col <- dplyr::case_when(
+    "n_proyectos" %in% names(data) ~ "n_proyectos",
+    "n_incidencias_provinciales" %in% names(data) ~ "n_incidencias_provinciales",
+    TRUE ~ NA_character_
+  )
+
+  data_plot <- data |>
     dplyr::filter(!is.na(monto_usd_mill)) |>
-    dplyr::arrange(dplyr::desc(monto_usd_mill))
-
-  if (!is.null(top_n)) plot_data <- dplyr::slice_head(plot_data, n = top_n)
-
-  plot_data <- plot_data |>
+    dplyr::arrange(monto_usd_mill) |>
     dplyr::mutate(
-      label_value = .data[[label_col]],
-      label_plot = wrap_label(label_value, width = 34),
-      label_plot = forcats::fct_reorder(label_plot, monto_usd_mill),
-      hover = glue::glue(
-        "{label_value}<br>",
-        "Proyectos: {fmt_number(n_proyectos, accuracy = 1)}<br>",
-        "Monto: {fmt_currency_mill(monto_usd_mill, accuracy = 1)}"
-      )
+      label = forcats::fct_inorder(.data[[label_col]]),
+      count_info = if (!is.na(count_col)) as.numeric(.data[[count_col]]) else NA_real_
     )
 
-  p <- ggplot2::ggplot(plot_data, ggplot2::aes(x = label_plot, y = monto_usd_mill, text = hover)) +
+  p <- ggplot2::ggplot(data_plot, ggplot2::aes(
+    x = monto_usd_mill,
+    y = label,
+    text = paste0(
+      .data[[label_col]],
+      "<br>Monto: ", fmt_currency_mill(monto_usd_mill, accuracy = 1),
+      "<br>Proyectos/incidencias: ", fmt_integer(count_info)
+    )
+  )) +
     ggplot2::geom_col(fill = fill_color, width = 0.72) +
-    ggplot2::coord_flip() +
-    ggplot2::scale_y_continuous(labels = function(x) fmt_number(x, accuracy = 1)) +
-    ggplot2::labs(title = title, subtitle = subtitle, x = NULL, y = "Millones de USD") +
-    rigi_theme()
-
-  plotly::ggplotly(p, tooltip = "text") |>
-    plotly::layout(margin = list(l = 130, r = 30, t = 70, b = 45))
-}
-
-plot_compare_aprobado_pendiente <- function(aprobado_tbl, pendiente_tbl, label_col, title, subtitle = NULL, top_n = 12) {
-  if (nrow(aprobado_tbl) == 0 && nrow(pendiente_tbl) == 0) return(empty_plot())
-
-  aprobado_data <- aprobado_tbl |>
-    dplyr::transmute(categoria = .data[[label_col]], universo = "Aprobados", n_proyectos, monto_usd_mill)
-
-  pendiente_data <- pendiente_tbl |>
-    dplyr::transmute(categoria = .data[[label_col]], universo = "Pendientes", n_proyectos, monto_usd_mill)
-
-  categorias_top <- dplyr::bind_rows(aprobado_data, pendiente_data) |>
-    dplyr::group_by(categoria) |>
-    dplyr::summarise(monto_usd_mill = sum(monto_usd_mill, na.rm = TRUE), .groups = "drop") |>
-    dplyr::arrange(dplyr::desc(monto_usd_mill)) |>
-    dplyr::slice_head(n = top_n) |>
-    dplyr::pull(categoria)
-
-  plot_data <- dplyr::bind_rows(aprobado_data, pendiente_data) |>
-    dplyr::filter(categoria %in% categorias_top) |>
-    tidyr::complete(categoria, universo = c("Aprobados", "Pendientes"), fill = list(n_proyectos = 0, monto_usd_mill = 0)) |>
-    dplyr::mutate(
-      universo = factor(universo, levels = c("Aprobados", "Pendientes")),
-      categoria_plot = wrap_label(categoria, width = 34),
-      categoria_plot = forcats::fct_reorder(categoria_plot, monto_usd_mill, .fun = max),
-      hover = glue::glue(
-        "Universo: {universo}<br>",
-        "Categoría: {categoria}<br>",
-        "Proyectos: {fmt_number(n_proyectos, accuracy = 1)}<br>",
-        "Monto: {fmt_currency_mill(monto_usd_mill, accuracy = 1)}"
-      )
+    ggplot2::labs(title = title, subtitle = subtitle, x = "Millones de USD", y = NULL) +
+    ggplot2::theme_minimal(base_size = 12) +
+    ggplot2::theme(
+      plot.title = ggplot2::element_text(face = "bold", size = 15),
+      plot.subtitle = ggplot2::element_text(size = 10.5),
+      panel.grid.major.y = ggplot2::element_blank()
     )
 
-  p <- ggplot2::ggplot(plot_data, ggplot2::aes(x = categoria_plot, y = monto_usd_mill, fill = universo, text = hover)) +
-    ggplot2::geom_col(position = ggplot2::position_dodge(width = 0.75), width = 0.68) +
-    ggplot2::coord_flip() +
-    ggplot2::scale_fill_manual(values = scope_colors) +
-    ggplot2::scale_y_continuous(labels = function(x) fmt_number(x, accuracy = 1)) +
-    ggplot2::labs(title = title, subtitle = subtitle, x = NULL, y = "Millones de USD") +
-    rigi_theme()
-
   plotly::ggplotly(p, tooltip = "text") |>
-    plotly::layout(legend = list(orientation = "h", x = 0, y = -0.15), margin = list(l = 140, r = 30, t = 75, b = 90))
+    plotly::layout(margin = list(l = 130, r = 30, b = 60, t = 80))
 }
 
-# Compatibilidad con la función anterior: compara total vs aprobados.
-plot_compare_total_aprobado <- function(total_tbl, aprobado_tbl, label_col, title, subtitle = NULL, top_n = 12) {
-  if (nrow(total_tbl) == 0) return(empty_plot())
+plot_bar_empleo <- function(data, label_col, title, subtitle = NULL, fill_color = bar_color_employment) {
+  if (nrow(data) == 0 || all(is.na(data$empleos_directos_indirectos))) return(empty_plot_message("No hay datos de empleo disponibles para este gráfico."))
 
-  total_data <- total_tbl |>
-    dplyr::transmute(categoria = .data[[label_col]], universo = "Total", n_proyectos, monto_usd_mill)
-  aprobado_data <- aprobado_tbl |>
-    dplyr::transmute(categoria = .data[[label_col]], universo = "Aprobados", n_proyectos, monto_usd_mill)
+  count_col <- dplyr::case_when(
+    "n_proyectos" %in% names(data) ~ "n_proyectos",
+    "n_incidencias_provinciales" %in% names(data) ~ "n_incidencias_provinciales",
+    TRUE ~ NA_character_
+  )
 
-  categorias_top <- total_data |>
-    dplyr::arrange(dplyr::desc(monto_usd_mill)) |>
-    dplyr::slice_head(n = top_n) |>
-    dplyr::pull(categoria)
-
-  plot_data <- dplyr::bind_rows(total_data, aprobado_data) |>
-    dplyr::filter(categoria %in% categorias_top) |>
-    tidyr::complete(categoria, universo = c("Total", "Aprobados"), fill = list(n_proyectos = 0, monto_usd_mill = 0)) |>
+  data_plot <- data |>
+    dplyr::filter(!is.na(empleos_directos_indirectos)) |>
+    dplyr::arrange(empleos_directos_indirectos) |>
     dplyr::mutate(
-      universo = factor(universo, levels = c("Total", "Aprobados")),
-      categoria_plot = wrap_label(categoria, width = 34),
-      categoria_plot = forcats::fct_reorder(categoria_plot, monto_usd_mill, .fun = max),
-      hover = glue::glue(
-        "Universo: {universo}<br>",
-        "Categoría: {categoria}<br>",
-        "Proyectos: {fmt_number(n_proyectos, accuracy = 1)}<br>",
-        "Monto: {fmt_currency_mill(monto_usd_mill, accuracy = 1)}"
-      )
+      label = forcats::fct_inorder(.data[[label_col]]),
+      count_info = if (!is.na(count_col)) as.numeric(.data[[count_col]]) else NA_real_
     )
 
-  p <- ggplot2::ggplot(plot_data, ggplot2::aes(x = categoria_plot, y = monto_usd_mill, fill = universo, text = hover)) +
-    ggplot2::geom_col(position = ggplot2::position_dodge(width = 0.75), width = 0.68) +
-    ggplot2::coord_flip() +
-    ggplot2::scale_fill_manual(values = scope_colors) +
-    ggplot2::scale_y_continuous(labels = function(x) fmt_number(x, accuracy = 1)) +
-    ggplot2::labs(title = title, subtitle = subtitle, x = NULL, y = "Millones de USD") +
-    rigi_theme()
-
-  plotly::ggplotly(p, tooltip = "text") |>
-    plotly::layout(legend = list(orientation = "h", x = 0, y = -0.15), margin = list(l = 140, r = 30, t = 75, b = 90))
-}
-
-plot_top_proyectos <- function(top_projects, title = "Top 10 proyectos por monto", subtitle = NULL, fill_color = bar_color_alt) {
-  if (nrow(top_projects) == 0) return(empty_plot())
-
-  data <- top_projects |>
-    dplyr::mutate(
-      proyecto_plot = wrap_label(proyecto, width = 42),
-      proyecto_plot = forcats::fct_reorder(proyecto_plot, monto_usd_mill),
-      hover = glue::glue(
-        "Proyecto: {proyecto}<br>",
-        "Empresa: {empresa}<br>",
-        "Titular: {titular_proyecto}<br>",
-        "Sector: {sector_simplificado}<br>",
-        "Estado: {estado_simplificado}<br>",
-        "Provincia/región: {provincia_simplificada}<br>",
-        "Monto: {fmt_currency_mill(monto_usd_mill, accuracy = 1)}"
-      )
+  p <- ggplot2::ggplot(data_plot, ggplot2::aes(
+    x = empleos_directos_indirectos,
+    y = label,
+    text = paste0(
+      .data[[label_col]],
+      "<br>Empleo: ", fmt_integer(empleos_directos_indirectos),
+      "<br>Proyectos/incidencias: ", fmt_integer(count_info)
     )
-
-  p <- ggplot2::ggplot(data, ggplot2::aes(x = proyecto_plot, y = monto_usd_mill, text = hover)) +
+  )) +
     ggplot2::geom_col(fill = fill_color, width = 0.72) +
-    ggplot2::coord_flip() +
-    ggplot2::scale_y_continuous(labels = function(x) fmt_number(x, accuracy = 1)) +
-    ggplot2::labs(title = title, subtitle = subtitle, x = NULL, y = "Millones de USD") +
-    rigi_theme()
+    ggplot2::labs(title = title, subtitle = subtitle, x = "Empleos directos e indirectos", y = NULL) +
+    ggplot2::theme_minimal(base_size = 12) +
+    ggplot2::theme(
+      plot.title = ggplot2::element_text(face = "bold", size = 15),
+      plot.subtitle = ggplot2::element_text(size = 10.5),
+      panel.grid.major.y = ggplot2::element_blank()
+    )
 
   plotly::ggplotly(p, tooltip = "text") |>
-    plotly::layout(margin = list(l = 170, r = 30, t = 70, b = 45))
+    plotly::layout(margin = list(l = 160, r = 30, b = 60, t = 80))
 }
 
-plot_sector_estado <- function(sector_estado_tbl) {
-  if (nrow(sector_estado_tbl) == 0) return(empty_plot())
+plot_top_proyectos_monto <- function(data, title, fill_color = bar_color_neutral) {
+  if (nrow(data) == 0 || all(is.na(data$monto_usd_mill))) return(empty_plot_message())
 
-  data <- sector_estado_tbl |>
-    dplyr::mutate(
-      sector_plot = wrap_label(sector_simplificado, width = 30),
-      hover = glue::glue(
-        "Sector: {sector_simplificado}<br>",
-        "Estado: {estado_simplificado}<br>",
-        "Proyectos: {fmt_number(n_proyectos, accuracy = 1)}<br>",
-        "Monto: {fmt_currency_mill(monto_usd_mill, accuracy = 1)}"
-      )
+  data_plot <- data |>
+    dplyr::filter(!is.na(monto_usd_mill)) |>
+    dplyr::arrange(monto_usd_mill) |>
+    dplyr::mutate(label = forcats::fct_inorder(proyecto))
+
+  p <- ggplot2::ggplot(data_plot, ggplot2::aes(
+    x = monto_usd_mill,
+    y = label,
+    text = paste0(
+      proyecto,
+      "<br>Empresa: ", dplyr::coalesce(empresa, "s/d"),
+      "<br>Sector: ", dplyr::coalesce(sector, "s/d"),
+      "<br>Provincia: ", dplyr::coalesce(provincia_original, "s/d"),
+      "<br>Monto: ", fmt_currency_mill(monto_usd_mill, accuracy = 1)
+    )
+  )) +
+    ggplot2::geom_col(fill = fill_color, width = 0.72) +
+    ggplot2::labs(title = title, x = "Millones de USD", y = NULL) +
+    ggplot2::theme_minimal(base_size = 12) +
+    ggplot2::theme(
+      plot.title = ggplot2::element_text(face = "bold", size = 15),
+      panel.grid.major.y = ggplot2::element_blank()
     )
 
-  plotly::plot_ly(
-    data = data,
-    x = ~estado_simplificado,
-    y = ~sector_plot,
-    z = ~monto_usd_mill,
-    type = "heatmap",
-    text = ~hover,
-    hoverinfo = "text",
-    colors = "Blues"
+  plotly::ggplotly(p, tooltip = "text") |>
+    plotly::layout(margin = list(l = 210, r = 30, b = 60, t = 80))
+}
+
+plot_top_proyectos_empleo <- function(data, title, fill_color = bar_color_employment) {
+  if (nrow(data) == 0 || all(is.na(data$empleos_directos_indirectos))) return(empty_plot_message("No hay datos de empleo disponibles para este gráfico."))
+
+  data_plot <- data |>
+    dplyr::filter(!is.na(empleos_directos_indirectos)) |>
+    dplyr::arrange(empleos_directos_indirectos) |>
+    dplyr::mutate(label = forcats::fct_inorder(proyecto))
+
+  p <- ggplot2::ggplot(data_plot, ggplot2::aes(
+    x = empleos_directos_indirectos,
+    y = label,
+    text = paste0(
+      proyecto,
+      "<br>Empresa: ", dplyr::coalesce(empresa, "s/d"),
+      "<br>Sector: ", dplyr::coalesce(sector, "s/d"),
+      "<br>Provincia: ", dplyr::coalesce(provincia_original, "s/d"),
+      "<br>Empleo: ", fmt_integer(empleos_directos_indirectos)
+    )
+  )) +
+    ggplot2::geom_col(fill = fill_color, width = 0.72) +
+    ggplot2::labs(title = title, x = "Empleos directos e indirectos", y = NULL) +
+    ggplot2::theme_minimal(base_size = 12) +
+    ggplot2::theme(
+      plot.title = ggplot2::element_text(face = "bold", size = 15),
+      panel.grid.major.y = ggplot2::element_blank()
+    )
+
+  plotly::ggplotly(p, tooltip = "text") |>
+    plotly::layout(margin = list(l = 210, r = 30, b = 60, t = 80))
+}
+
+plot_estado <- function(data) {
+  if (nrow(data) == 0) return(empty_plot_message())
+
+  data_plot <- data |>
+    dplyr::mutate(label = forcats::fct_reorder(estado_simplificado, n_proyectos))
+
+  p <- ggplot2::ggplot(data_plot, ggplot2::aes(
+    x = n_proyectos,
+    y = label,
+    text = paste0(
+      estado_simplificado,
+      "<br>Proyectos: ", fmt_integer(n_proyectos),
+      "<br>Monto: ", fmt_currency_mill(monto_usd_mill, accuracy = 1)
+    )
+  )) +
+    ggplot2::geom_col(fill = "#145DA0", width = 0.72) +
+    ggplot2::labs(title = "Proyectos por estado administrativo", x = "Cantidad de proyectos", y = NULL) +
+    ggplot2::theme_minimal(base_size = 12) +
+    ggplot2::theme(plot.title = ggplot2::element_text(face = "bold", size = 15))
+
+  plotly::ggplotly(p, tooltip = "text")
+}
+
+plot_compare_aprobado_pendiente <- function(aprobado_tbl, pendiente_tbl, label_col, title) {
+  data_plot <- dplyr::bind_rows(
+    aprobado_tbl |> dplyr::transmute(label = .data[[label_col]], estado = "Aprobado", monto_usd_mill),
+    pendiente_tbl |> dplyr::transmute(label = .data[[label_col]], estado = "Pendiente / en evaluación", monto_usd_mill)
   ) |>
-    plotly::layout(
-      title = list(text = "Matriz sector-estado por monto total"),
-      xaxis = list(title = "Estado administrativo"),
-      yaxis = list(title = "Sector"),
-      margin = list(l = 130, r = 30, t = 65, b = 70)
-    )
+    dplyr::filter(!is.na(monto_usd_mill)) |>
+    dplyr::group_by(label) |>
+    dplyr::mutate(total_label = sum(monto_usd_mill, na.rm = TRUE)) |>
+    dplyr::ungroup() |>
+    dplyr::arrange(total_label) |>
+    dplyr::mutate(label = forcats::fct_inorder(label))
+
+  if (nrow(data_plot) == 0) return(empty_plot_message())
+
+  p <- ggplot2::ggplot(data_plot, ggplot2::aes(
+    x = monto_usd_mill,
+    y = label,
+    fill = estado,
+    text = paste0(label, "<br>", estado, "<br>Monto: ", fmt_currency_mill(monto_usd_mill, accuracy = 1))
+  )) +
+    ggplot2::geom_col(position = "dodge", width = 0.72) +
+    ggplot2::scale_fill_manual(values = c("Aprobado" = bar_color_compare_approved, "Pendiente / en evaluación" = bar_color_compare_pending)) +
+    ggplot2::labs(title = title, x = "Millones de USD", y = NULL, fill = NULL) +
+    ggplot2::theme_minimal(base_size = 12) +
+    ggplot2::theme(plot.title = ggplot2::element_text(face = "bold", size = 15))
+
+  plotly::ggplotly(p, tooltip = "text") |>
+    plotly::layout(margin = list(l = 160, r = 30, b = 60, t = 80))
 }
 
-plot_timeline <- function(timeline_tbl, title = "Línea de tiempo de presentaciones y aprobaciones") {
-  if (nrow(timeline_tbl) == 0) return(empty_plot("No hay fechas informadas para construir la línea de tiempo"))
+plot_compare_counts_montos <- function(ind) {
+  data_plot <- tibble::tibble(
+    grupo = c("Aprobados", "Pendientes / en evaluación"),
+    proyectos = c(ind$n_aprobados, ind$n_pendientes),
+    monto_usd_mill = c(ind$monto_aprobado, ind$monto_pendiente)
+  )
 
-  data <- timeline_tbl |>
-    dplyr::mutate(
-      proyecto_plot = wrap_label(proyecto, width = 44),
-      proyecto_plot = forcats::fct_reorder(proyecto_plot, fecha),
-      size_plot = dplyr::case_when(is.na(monto_usd_mill) ~ 8, monto_usd_mill <= 0 ~ 8, TRUE ~ sqrt(monto_usd_mill)),
-      hover = glue::glue(
-        "Proyecto: {proyecto}<br>",
-        "Evento: {evento}<br>",
-        "Fecha: {fmt_date(fecha)}<br>",
-        "Sector: {sector_simplificado}<br>",
-        "Estado: {estado_simplificado}<br>",
-        "Monto: {fmt_currency_mill(monto_usd_mill, accuracy = 1)}"
-      )
-    )
+  p <- ggplot2::ggplot(data_plot, ggplot2::aes(
+    x = grupo,
+    y = monto_usd_mill,
+    fill = grupo,
+    text = paste0(grupo, "<br>Proyectos: ", fmt_integer(proyectos), "<br>Monto: ", fmt_currency_mill(monto_usd_mill, accuracy = 1))
+  )) +
+    ggplot2::geom_col(width = 0.62) +
+    ggplot2::scale_fill_manual(values = c("Aprobados" = bar_color_compare_approved, "Pendientes / en evaluación" = bar_color_compare_pending)) +
+    ggplot2::labs(title = "Monto informado: aprobados vs. pendientes", x = NULL, y = "Millones de USD") +
+    ggplot2::theme_minimal(base_size = 12) +
+    ggplot2::theme(legend.position = "none", plot.title = ggplot2::element_text(face = "bold", size = 15))
 
-  plotly::plot_ly(
-    data = data,
-    x = ~fecha,
-    y = ~proyecto_plot,
-    type = "scatter",
-    mode = "markers",
-    color = ~evento,
-    size = ~size_plot,
-    sizes = c(8, 28),
-    marker = list(opacity = 0.75, line = list(width = 1, color = "#FFFFFF")),
-    text = ~hover,
-    hoverinfo = "text"
-  ) |>
-    plotly::layout(
-      title = list(text = title),
-      xaxis = list(title = "Fecha"),
-      yaxis = list(title = "Proyecto", automargin = TRUE),
-      legend = list(orientation = "h", x = 0, y = -0.18),
-      margin = list(l = 220, r = 30, t = 65, b = 90)
-    )
+  plotly::ggplotly(p, tooltip = "text")
 }
 
-datatable_proyectos <- function(proyectos) {
-  table_data <- proyectos |>
-    dplyr::transmute(
+plot_timeline <- function(data, date_col = "fecha_aprobacion", title = "Línea de tiempo") {
+  if (nrow(data) == 0 || all(is.na(data[[date_col]]))) return(empty_plot_message())
+
+  data_plot <- data |>
+    dplyr::filter(!is.na(.data[[date_col]])) |>
+    dplyr::arrange(.data[[date_col]]) |>
+    dplyr::mutate(y_pos = dplyr::row_number())
+
+  p <- ggplot2::ggplot(data_plot, ggplot2::aes(
+    x = .data[[date_col]],
+    y = y_pos,
+    size = monto_usd_mill,
+    text = paste0(
+      proyecto,
+      "<br>Fecha: ", fmt_date(.data[[date_col]]),
+      "<br>Estado: ", estado_simplificado,
+      "<br>Monto: ", fmt_currency_mill(monto_usd_mill, accuracy = 1)
+    )
+  )) +
+    ggplot2::geom_point(color = "#0B4F6C", alpha = 0.85) +
+    ggplot2::labs(title = title, x = NULL, y = NULL) +
+    ggplot2::theme_minimal(base_size = 12) +
+    ggplot2::theme(
+      axis.text.y = ggplot2::element_blank(),
+      panel.grid.major.y = ggplot2::element_blank(),
+      plot.title = ggplot2::element_text(face = "bold", size = 15)
+    )
+
+  plotly::ggplotly(p, tooltip = "text") |>
+    plotly::layout(showlegend = FALSE)
+}
+
+make_datatable <- function(data, caption = NULL) {
+  data_display <- data |>
+    dplyr::select(
+      proyecto,
+      empresa,
+      titular_proyecto,
+      sector,
+      subsector,
+      provincia_original,
+      localidad_region,
+      monto_usd_mill,
+      activos_computables_usd_mill,
+      empleos_directos_indirectos,
+      estado,
+      fecha_presentacion,
+      fecha_aprobacion,
+      norma_aprobacion,
+      link_norma,
+      fuentes
+    ) |>
+    dplyr::rename(
       Proyecto = proyecto,
-      Descripción = descripcion_del_proyecto,
       Empresa = empresa,
       `Titular / VPU` = titular_proyecto,
-      CUIT = cuit,
-      Sector = sector_simplificado,
-      Subsector = subsector_simplificado,
-      `Actividad subsector` = actividad_subsector_resolucion_mecon,
-      Provincia = provincia_simplificada,
+      Sector = sector,
+      Subsector = subsector,
+      Provincia = provincia_original,
       `Localidad / región` = localidad_region,
       `Monto (mill. USD)` = monto_usd_mill,
-      `Activos computables (mill. USD)` = activos_computables_usd_mill,
-      `Estado administrativo` = estado_simplificado,
-      `Fecha de presentación` = fmt_date(fecha_presentacion),
-      `Fecha adhesión RIGI` = fmt_date(fecha_adhesion_rigi),
-      `Fecha publicación BO` = fmt_date(fecha_publicacion_bo),
+      `Activos Computables (mill. USD)` = activos_computables_usd_mill,
+      `Empleos (directos e indirectos)` = empleos_directos_indirectos,
+      `Estado administrativo` = estado,
+      `Fecha de presentación` = fecha_presentacion,
+      `Fecha de aprobación` = fecha_aprobacion,
       `Norma de aprobación` = norma_aprobacion,
-      `Preexistencia BO` = clasificacion_preexistencia_boletin_oficial,
-      `Justificación preexistencia` = justificacion_preexistencia_boletin_oficial,
       `Link norma` = link_norma,
-      Fuentes = fuentes,
-      `Fuente analítica` = fuente_analitica
+      Fuentes = fuentes
     )
 
   DT::datatable(
-    table_data,
+    data_display,
+    caption = caption,
     rownames = FALSE,
     filter = "top",
-    extensions = c("Buttons", "Responsive"),
-    class = "stripe hover compact nowrap",
+    extensions = c("Buttons"),
     options = list(
+      pageLength = 10,
+      scrollX = TRUE,
       dom = "Bfrtip",
       buttons = c("copy", "csv", "excel"),
-      pageLength = 10,
-      autoWidth = TRUE,
-      scrollX = TRUE,
-      responsive = TRUE,
-      language = list(url = "https://cdn.datatables.net/plug-ins/1.13.8/i18n/es-ES.json")
+      language = list(url = "https://cdn.datatables.net/plug-ins/1.13.7/i18n/es-ES.json")
     )
   ) |>
-    DT::formatRound(columns = c("Monto (mill. USD)", "Activos computables (mill. USD)"), digits = 1, mark = ".", dec.mark = ",")
+    DT::formatRound(columns = c("Monto (mill. USD)", "Activos Computables (mill. USD)"), digits = 1, mark = ".", dec.mark = ",") |>
+    DT::formatRound(columns = c("Empleos (directos e indirectos)"), digits = 0, mark = ".", dec.mark = ",")
 }

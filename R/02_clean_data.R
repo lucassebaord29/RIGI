@@ -2,7 +2,8 @@
 
 na_labels <- c(
   "", "NA", "N/A", "S/D", "s/d", "sd", "Sin dato", "sin dato",
-  "No informado", "no informado", "NO INFORMADO", "No informa", "-", "--"
+  "No informado", "no informado", "NO INFORMADO", "No informa", "-", "--",
+  "nan", "NaN", "NULL", "null"
 )
 
 empty_to_na <- function(x) {
@@ -42,46 +43,34 @@ coalesce_raw_cols <- function(data, candidates) {
   out
 }
 
-parse_numeric_mixed <- function(x) {
+# Conversión robusta para montos, activos computables y empleos.
+# Preserva columnas numéricas si ya vienen como numeric/double desde Excel.
+parse_numeric_rigi <- function(x) {
   if (is.numeric(x)) return(as.numeric(x))
 
   x_chr <- as.character(x)
-  x_chr <- stringr::str_squish(x_chr)
+  x_chr <- stringr::str_trim(x_chr)
   x_chr[x_chr %in% na_labels] <- NA_character_
-  x_chr <- stringr::str_replace_all(x_chr, "USD|US\\$|u\\$s|U\\$S|millones|mill\\.|M", "")
-  x_chr <- stringr::str_replace_all(x_chr, "\\s", "")
-  x_chr <- stringr::str_replace_all(x_chr, "[^0-9,\\.\\-]", "")
 
-  out <- rep(NA_real_, length(x_chr))
+  # Remover símbolos y texto, preservando dígitos, coma, punto y signo negativo.
+  x_chr <- stringr::str_replace_all(x_chr, "[^0-9,.-]", "")
 
-  for (i in seq_along(x_chr)) {
-    value <- x_chr[i]
-    if (is.na(value) || value == "") next
+  # Si viene con formato argentino 1.234,56.
+  x_chr <- ifelse(
+    stringr::str_detect(x_chr, "\\.\\d{3}") & stringr::str_detect(x_chr, ","),
+    stringr::str_replace_all(x_chr, "\\.", ""),
+    x_chr
+  )
 
-    has_comma <- stringr::str_detect(value, ",")
-    has_dot <- stringr::str_detect(value, "\\.")
+  # Si hay más de un punto y no hay coma, interpretamos puntos como separadores de miles.
+  x_chr <- ifelse(
+    !stringr::str_detect(x_chr, ",") & stringr::str_count(x_chr, "\\.") > 1,
+    stringr::str_replace_all(x_chr, "\\.", ""),
+    x_chr
+  )
 
-    if (has_comma && has_dot) {
-      last_comma <- max(gregexpr(",", value, fixed = TRUE)[[1]])
-      last_dot <- max(gregexpr(".", value, fixed = TRUE)[[1]])
-
-      if (last_comma > last_dot) {
-        value <- stringr::str_replace_all(value, "\\.", "")
-        value <- stringr::str_replace(value, ",", ".")
-      } else {
-        value <- stringr::str_replace_all(value, ",", "")
-      }
-    } else if (has_comma && !has_dot) {
-      value <- stringr::str_replace(value, ",", ".")
-    } else if (!has_comma && has_dot) {
-      n_dots <- stringr::str_count(value, "\\.")
-      if (n_dots > 1) value <- stringr::str_replace_all(value, "\\.", "")
-    }
-
-    out[i] <- suppressWarnings(as.numeric(value))
-  }
-
-  out
+  x_chr <- stringr::str_replace_all(x_chr, ",", ".")
+  suppressWarnings(as.numeric(x_chr))
 }
 
 convert_excel_date <- function(x) {
@@ -117,8 +106,6 @@ clean_proyectos <- function(raw_data) {
     janitor::clean_names() |>
     dplyr::mutate(dplyr::across(where(is.character), empty_to_na))
 
-  # La versión actualizada del Excel usa VPU como nombre del proyecto.
-  # Esta limpieza conserva compatibilidad con versiones anteriores que tenían columna Proyecto.
   proyecto <- coalesce_text_cols(data, c("proyecto", "vpu", "nombre_proyecto_matcheado"))
   descripcion <- coalesce_text_cols(data, c("descripcion_del_proyecto", "descripcion", "description"))
   empresa <- coalesce_text_cols(data, c("empresa", "empresas"))
@@ -126,7 +113,7 @@ clean_proyectos <- function(raw_data) {
   cuit <- coalesce_text_cols(data, c("cuit", "cuit_titular"))
   sector <- coalesce_text_cols(data, c("sector"))
   subsector <- coalesce_text_cols(data, c("subsector"))
-  actividad_subsector <- coalesce_text_cols(data, c("actividad_subsector_resolucion_mecon", "actividad_subsector_resolucion_mec_on", "actividad_subsector"))
+  actividad_subsector <- coalesce_text_cols(data, c("actividad_subsector_resolucion_mecon", "actividad_subsector"))
   provincia <- coalesce_text_cols(data, c("provincia"))
   localidad_region <- coalesce_text_cols(data, c("localidad_region", "localidad", "region"))
   estado <- coalesce_text_cols(data, c("estado_administrativo", "estado"))
@@ -139,6 +126,14 @@ clean_proyectos <- function(raw_data) {
 
   monto_raw <- coalesce_raw_cols(data, c("monto_mill_usd", "monto_usd_mill", "monto"))
   activos_raw <- coalesce_raw_cols(data, c("activos_computables_mill_usd", "activos_computables_usd_mill", "activos_computables"))
+  empleos_raw <- coalesce_raw_cols(data, c(
+    "empleos_directos_e_indirectos",
+    "empleos_directos_indirectos",
+    "empleos_directos_e_indirectos_",
+    "empleos",
+    "empleo",
+    "empleos_directos_indirectos_total"
+  ))
 
   fecha_presentacion_raw <- coalesce_raw_cols(data, c("fecha_presentacion", "fecha_de_presentacion"))
   fecha_adhesion_raw <- coalesce_raw_cols(data, c("fecha_adhesion_rigi", "fecha_adhesion", "fecha_de_adhesion_rigi"))
@@ -154,8 +149,11 @@ clean_proyectos <- function(raw_data) {
   fecha_aprobacion <- dplyr::coalesce(fecha_aprobacion_original, fecha_publicacion_bo, fecha_adhesion_rigi)
 
   estado_norm <- normalize_text(estado)
+  aprobado <- stringr::str_detect(estado_norm, "aprob") & !stringr::str_detect(estado_norm, "no aprob|rechaz|desest")
+  pendiente <- !aprobado & stringr::str_detect(estado_norm, "evalu|pend|anal|present|tram|anunci")
 
-  tibble::tibble(
+  base <- tibble::tibble(
+    row_id = seq_len(nrow(data)),
     id_proyecto = coalesce_text_cols(data, c("id_proyecto", "id")),
     proyecto = proyecto,
     descripcion_del_proyecto = descripcion,
@@ -167,10 +165,12 @@ clean_proyectos <- function(raw_data) {
     sector = sector,
     subsector = subsector,
     actividad_subsector_resolucion_mecon = actividad_subsector,
+    provincia_original = provincia,
     provincia = provincia,
     localidad_region = localidad_region,
-    monto_usd_mill = parse_numeric_mixed(monto_raw),
-    activos_computables_usd_mill = parse_numeric_mixed(activos_raw),
+    monto_usd_mill = parse_numeric_rigi(monto_raw),
+    activos_computables_usd_mill = parse_numeric_rigi(activos_raw),
+    empleos_directos_indirectos = parse_numeric_rigi(empleos_raw),
     estado = estado,
     fecha_presentacion = fecha_presentacion,
     fecha_adhesion_rigi = fecha_adhesion_rigi,
@@ -182,26 +182,98 @@ clean_proyectos <- function(raw_data) {
     link_norma = link_norma,
     fuentes = fuentes,
     estado_simplificado = dplyr::case_when(
+      aprobado ~ "Aprobado",
+      pendiente ~ "Pendiente de aprobación",
       stringr::str_detect(estado_norm, "no aprob|rechaz|desest") ~ "Rechazado",
-      stringr::str_detect(estado_norm, "aprob") ~ "Aprobado",
-      stringr::str_detect(estado_norm, "evalu|pend|anal|present|tram|anunci") ~ "Pendiente de aprobación",
       is.na(estado) ~ "No informado",
       TRUE ~ "Otros"
     ),
+    aprobado = aprobado,
+    pendiente_aprobacion = pendiente,
     sector_simplificado = dplyr::coalesce(sector, "No informado"),
     subsector_simplificado = dplyr::coalesce(subsector, "No informado"),
     provincia_simplificada = dplyr::coalesce(provincia, "No informado"),
-    monto_usd_bill = monto_usd_mill / 1000,
     anio_presentacion = lubridate::year(fecha_presentacion),
     anio_aprobacion = lubridate::year(fecha_aprobacion),
-    mes_presentacion = lubridate::floor_date(fecha_presentacion, unit = "month"),
-    mes_aprobacion = lubridate::floor_date(fecha_aprobacion, unit = "month"),
-    aprobado = estado_simplificado == "Aprobado",
-    pendiente_aprobacion = estado_simplificado == "Pendiente de aprobación",
-    fuente_analitica = dplyr::case_when(
-      aprobado ~ "Boletín Oficial + empresas inferidas por Globaris",
-      pendiente_aprobacion ~ "Dashboard de Globaris",
-      TRUE ~ dplyr::coalesce(fuentes, "No informado")
-    )
+    mes_presentacion = lubridate::floor_date(fecha_presentacion, "month"),
+    mes_aprobacion = lubridate::floor_date(fecha_aprobacion, "month")
   )
+
+  base |>
+    dplyr::mutate(
+      n_provincias = stringr::str_count(dplyr::coalesce(provincia_original, "No informado"), ";") + 1L,
+      n_provincias = dplyr::if_else(is.na(n_provincias) | n_provincias < 1L, 1L, n_provincias),
+      proyecto_multiprovincial = n_provincias > 1L
+    )
+}
+
+expand_provincias <- function(data) {
+  data |>
+    dplyr::mutate(
+      provincia_expandida = dplyr::coalesce(provincia_original, "No informado"),
+      provincia_expandida = dplyr::if_else(provincia_expandida == "", "No informado", provincia_expandida)
+    ) |>
+    tidyr::separate_rows(provincia_expandida, sep = ";") |>
+    dplyr::mutate(
+      provincia_expandida = stringr::str_squish(provincia_expandida),
+      provincia_expandida = dplyr::if_else(is.na(provincia_expandida) | provincia_expandida == "", "No informado", provincia_expandida)
+    ) |>
+    dplyr::group_by(row_id) |>
+    dplyr::mutate(n_provincias_expandida = dplyr::n()) |>
+    dplyr::ungroup() |>
+    dplyr::mutate(
+      monto_usd_mill_asignado_prop = monto_usd_mill / n_provincias_expandida,
+      activos_computables_usd_mill_asignado_prop = activos_computables_usd_mill / n_provincias_expandida,
+      empleos_directos_indirectos_asignado_prop = empleos_directos_indirectos / n_provincias_expandida,
+      provincia_simplificada = provincia_expandida
+    )
+}
+
+make_download_table <- function(data) {
+  data |>
+    dplyr::transmute(
+      id_proyecto = id_proyecto,
+      Proyecto = proyecto,
+      `Descripción del proyecto` = descripcion_del_proyecto,
+      empresa = empresa,
+      titular_proyecto = titular_proyecto,
+      CUIT = cuit,
+      sector = sector,
+      subsector = subsector,
+      provincia = provincia_original,
+      localidad_region = localidad_region,
+      `Monto (mill. USD)` = as.numeric(monto_usd_mill),
+      `Activos Computables (mill. USD)` = as.numeric(activos_computables_usd_mill),
+      `Empleos (directos e indirectos)` = as.numeric(empleos_directos_indirectos),
+      `Estado administrativo` = estado,
+      fecha_presentacion = fecha_presentacion,
+      fecha_adhesion_rigi = fecha_adhesion_rigi,
+      fecha_publicacion_bo = fecha_publicacion_bo,
+      fecha_aprobacion = fecha_aprobacion,
+      norma_aprobacion = norma_aprobacion,
+      link_norma = link_norma,
+      Fuentes = fuentes,
+      `Clasificación preexistencia BO` = clasificacion_preexistencia_boletin_oficial,
+      `Justificación preexistencia BO` = justificacion_preexistencia_boletin_oficial
+    )
+}
+
+create_download_files <- function(data, output_dir = "downloads") {
+  dir.create(output_dir, showWarnings = FALSE, recursive = TRUE)
+
+  aprobados_download <- data |>
+    dplyr::filter(aprobado) |>
+    make_download_table()
+
+  pendientes_download <- data |>
+    dplyr::filter(pendiente_aprobacion) |>
+    make_download_table()
+
+  readr::write_csv(aprobados_download, file.path(output_dir, "base_interactiva_aprobados.csv"), na = "")
+  readr::write_csv(pendientes_download, file.path(output_dir, "base_interactiva_pendientes.csv"), na = "")
+
+  writexl::write_xlsx(aprobados_download, file.path(output_dir, "base_interactiva_aprobados.xlsx"))
+  writexl::write_xlsx(pendientes_download, file.path(output_dir, "base_interactiva_pendientes.xlsx"))
+
+  invisible(list(aprobados = aprobados_download, pendientes = pendientes_download))
 }

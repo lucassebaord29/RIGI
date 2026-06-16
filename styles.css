@@ -125,6 +125,41 @@ h1, h2, h3 {
   border-left-color: #F59E0B;
 }
 
+.download-box {
+  background: #FFFFFF;
+  border: 1px solid #E5E7EB;
+  border-left: 6px solid #145DA0;
+  border-radius: 16px;
+  padding: 16px 18px;
+  margin: 16px 0 18px 0;
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.06);
+}
+
+.download-button {
+  display: inline-block;
+  margin-left: 10px;
+  padding: 7px 12px;
+  border-radius: 10px;
+  background: #0B4F6C;
+  color: white !important;
+  text-decoration: none;
+  font-weight: 700;
+}
+
+.download-button:hover {
+  background: #145DA0;
+  text-decoration: none;
+}
+
+.empty-plot-box {
+  background: #FFFFFF;
+  border: 1px dashed #CBD5E1;
+  border-radius: 16px;
+  padding: 22px;
+  color: #64748B;
+  margin: 12px 0 24px 0;
+}
+
 .kpi-grid {
   display: grid;
   grid-template-columns: repeat(6, minmax(150px, 1fr));
@@ -150,12 +185,16 @@ h1, h2, h3 {
   border-top: 6px solid #0B4F6C;
 }
 
+.kpi-grid-employment .kpi-card {
+  border-top: 6px solid #145DA0;
+}
+
 .kpi-grid-pending .kpi-card {
   border-top: 6px solid #F9A03F;
 }
 
 .kpi-grid-status .kpi-card {
-  border-top: 6px solid #145DA0;
+  border-top: 6px solid #334155;
 }
 
 .kpi-label {
@@ -168,7 +207,7 @@ h1, h2, h3 {
 }
 
 .kpi-value {
-  font-size: 1.65rem;
+  font-size: 1.45rem;
   font-weight: 850;
   color: #111827;
   margin-top: 6px;
@@ -200,7 +239,7 @@ h1, h2, h3 {
 }
 
 .reveal .kpi-value {
-  font-size: 1.22rem;
+  font-size: 1.15rem;
 }
 
 .presentation-cover {

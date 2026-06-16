@@ -1,7 +1,7 @@
 Package: rigiDashboard
 Type: Project
 Title: Monitor de Proyectos RIGI
-Version: 0.0.1
+Version: 0.0.2
 Encoding: UTF-8
 Imports:
     tidyverse,
@@ -13,4 +13,5 @@ Imports:
     glue,
     scales,
     htmltools,
-    forcats
+    forcats,
+    writexl
