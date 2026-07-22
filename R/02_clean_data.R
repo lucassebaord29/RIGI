@@ -21,6 +21,16 @@ normalize_text <- function(x) {
   x
 }
 
+normalize_si_no <- function(x) {
+  x_norm <- normalize_text(x)
+  dplyr::case_when(
+    is.na(x_norm) | x_norm %in% c("", "na", "n/a", "s/d", "sd", "no informado") ~ NA_character_,
+    stringr::str_detect(x_norm, "^(si|s)($|\\b)") ~ "Sí",
+    stringr::str_detect(x_norm, "^(no|n)($|\\b)") ~ "No",
+    TRUE ~ as.character(x)
+  )
+}
+
 coalesce_text_cols <- function(data, candidates) {
   n <- nrow(data)
   out <- rep(NA_character_, n)
@@ -122,7 +132,14 @@ clean_proyectos <- function(raw_data) {
   fuentes <- coalesce_text_cols(data, c("fuentes", "fuente"))
   preexistencia <- coalesce_text_cols(data, c("clasificacion_preexistencia_boletin_oficial", "clasificacion_preexistencia"))
   justificacion_preexistencia <- coalesce_text_cols(data, c("justificacion_preexistencia_boletin_oficial", "justificacion_preexistencia"))
-  proyecto_exportacion <- coalesce_text_cols(data, c("proyecto_de_exportacion_estrategia_a_largo_plazo", "proyecto_de_exportacion_estrategia_a_largo_plazo_"))
+  proyecto_exportacion <- coalesce_text_cols(data, c(
+    "proyectos_de_exportacion_estrategica_de_largo_plazo_peelp",
+    "proyecto_de_exportacion_estrategica_de_largo_plazo_peelp",
+    "proyectos_de_exportacion_estrategica_largo_plazo_peelp",
+    "proyecto_de_exportacion_estrategica_largo_plazo_peelp",
+    "proyecto_de_exportacion_estrategia_a_largo_plazo",
+    "proyecto_de_exportacion_estrategia_a_largo_plazo_"
+  ))
 
   monto_raw <- coalesce_raw_cols(data, c("monto_mill_usd", "monto_usd_mill", "monto"))
   activos_raw <- coalesce_raw_cols(data, c("activos_computables_mill_usd", "activos_computables_usd_mill", "activos_computables"))
@@ -157,7 +174,8 @@ clean_proyectos <- function(raw_data) {
     id_proyecto = coalesce_text_cols(data, c("id_proyecto", "id")),
     proyecto = proyecto,
     descripcion_del_proyecto = descripcion,
-    proyecto_de_exportacion_estrategia_largo_plazo = proyecto_exportacion,
+    proyecto_de_exportacion_estrategia_largo_plazo = normalize_si_no(proyecto_exportacion),
+    proyecto_exportacion_estrategia_largo_plazo_si = normalize_si_no(proyecto_exportacion) == "Sí",
     empresa = empresa,
     titular_proyecto = titular,
     vpu_o_sociedad = titular,
@@ -235,6 +253,7 @@ make_download_table <- function(data) {
       id_proyecto = id_proyecto,
       Proyecto = proyecto,
       `Descripción del proyecto` = descripcion_del_proyecto,
+      `Proyectos de exportación estratégica de largo plazo (PEELP)` = proyecto_de_exportacion_estrategia_largo_plazo,
       empresa = empresa,
       titular_proyecto = titular_proyecto,
       CUIT = cuit,

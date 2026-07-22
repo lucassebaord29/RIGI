@@ -74,6 +74,31 @@ Esta sección muestra exclusivamente proyectos con estado administrativo **Aprob
 make_kpi_cards_aprobados(indicadores)
 ```
 
+## Proyectos de exportación estratégica de largo plazo (PEELP)
+
+::: {.section-intro}
+Esta subsección identifica los proyectos aprobados cuya columna **Proyectos de exportación estratégica de largo plazo (PEELP)** tiene valor **Sí** en el Excel fuente.
+::: 
+
+```{r}
+make_kpi_cards_exportacion_largo_plazo(indicadores)
+```
+
+```{r}
+plot_top_proyectos_monto(
+  tablas$aprobados_exportacion_largo_plazo,
+  title = "Proyectos aprobados PEELP",
+  fill_color = bar_color_approved
+)
+```
+
+```{r}
+make_datatable(
+  tablas$aprobados_exportacion_largo_plazo,
+  caption = "Proyectos aprobados PEELP"
+)
+```
+
 ## Empleo informado en proyectos aprobados
 
 ```{r}

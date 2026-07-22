@@ -66,6 +66,7 @@ first_or_sd <- function(x) {
 make_indicators <- function(data, data_prov, file_update_time) {
   aprobados <- data |> dplyr::filter(aprobado)
   pendientes <- data |> dplyr::filter(pendiente_aprobacion)
+  aprobados_exportacion_lp <- aprobados |> dplyr::filter(proyecto_exportacion_estrategia_largo_plazo_si)
   aprobados_prov <- data_prov |> dplyr::filter(aprobado)
   pendientes_prov <- data_prov |> dplyr::filter(pendiente_aprobacion)
 
@@ -126,6 +127,11 @@ make_indicators <- function(data, data_prov, file_update_time) {
     empleos_aprobados = sum_or_na(aprobados$empleos_directos_indirectos),
     empleos_promedio_aprobados = mean_or_na(aprobados$empleos_directos_indirectos),
     empleos_mediana_aprobados = median_or_na(aprobados$empleos_directos_indirectos),
+    n_aprobados_exportacion_largo_plazo = nrow(aprobados_exportacion_lp),
+    monto_aprobados_exportacion_largo_plazo = sum_or_na(aprobados_exportacion_lp$monto_usd_mill),
+    activos_aprobados_exportacion_largo_plazo = sum_or_na(aprobados_exportacion_lp$activos_computables_usd_mill),
+    empleos_aprobados_exportacion_largo_plazo = sum_or_na(aprobados_exportacion_lp$empleos_directos_indirectos),
+    participacion_aprobados_exportacion_largo_plazo = n_aprobados_exportacion_largo_plazo / n_aprobados,
     sector_top_aprobado = sector_top_aprobado,
     provincia_top_aprobada = provincia_top_aprobada,
     empleo_top_proyecto = empleo_top_proyecto,
@@ -147,6 +153,7 @@ make_indicators <- function(data, data_prov, file_update_time) {
 make_tables <- function(data, data_prov) {
   aprobados <- data |> dplyr::filter(aprobado)
   pendientes <- data |> dplyr::filter(pendiente_aprobacion)
+  aprobados_exportacion_lp <- aprobados |> dplyr::filter(proyecto_exportacion_estrategia_largo_plazo_si)
   aprobados_prov <- data_prov |> dplyr::filter(aprobado)
   pendientes_prov <- data_prov |> dplyr::filter(pendiente_aprobacion)
 
@@ -190,6 +197,9 @@ make_tables <- function(data, data_prov) {
     sector_tbl_pendientes = sector_summary(pendientes),
     provincia_tbl_aprobados = provincia_summary(aprobados_prov),
     provincia_tbl_pendientes = provincia_summary(pendientes_prov),
+
+    aprobados_exportacion_largo_plazo = aprobados_exportacion_lp |>
+      dplyr::arrange(dplyr::desc(monto_usd_mill)),
 
     top_projects_aprobados = aprobados |>
       dplyr::arrange(dplyr::desc(monto_usd_mill)) |>

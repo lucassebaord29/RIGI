@@ -51,6 +51,20 @@ make_source_note()
 make_kpi_cards_aprobados(indicadores)
 ```
 
+## Proyectos PEELP
+
+```{r}
+make_kpi_cards_exportacion_largo_plazo(indicadores)
+```
+
+```{r}
+plot_top_proyectos_monto(
+  tablas$aprobados_exportacion_largo_plazo,
+  title = "Proyectos aprobados PEELP",
+  fill_color = bar_color_approved
+)
+```
+
 ## Empleo en proyectos aprobados
 
 ```{r}

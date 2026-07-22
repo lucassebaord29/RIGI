@@ -191,6 +191,17 @@ make_kpi_cards_empleo_aprobado <- function(ind) {
   )
 }
 
+make_kpi_cards_exportacion_largo_plazo <- function(ind) {
+  htmltools::div(
+    class = "kpi-grid kpi-grid-approved",
+    make_kpi_card("Proyectos aprobados PEELP", fmt_integer(ind$n_aprobados_exportacion_largo_plazo), "Columna: Proyectos de exportación estratégica de largo plazo (PEELP) = Sí"),
+    make_kpi_card("Monto asociado", fmt_currency_mill(ind$monto_aprobados_exportacion_largo_plazo, accuracy = 1), "Solo aprobados con valor Sí"),
+    make_kpi_card("Activos computables asociados", fmt_currency_mill(ind$activos_aprobados_exportacion_largo_plazo, accuracy = 1), "Solo aprobados con valor Sí"),
+    make_kpi_card("Empleo asociado", fmt_integer(ind$empleos_aprobados_exportacion_largo_plazo), "Directos e indirectos"),
+    make_kpi_card("Participación en aprobados", fmt_pct(ind$participacion_aprobados_exportacion_largo_plazo), "Sobre cantidad de proyectos aprobados")
+  )
+}
+
 make_kpi_cards_pendientes <- function(ind) {
   htmltools::div(
     class = "kpi-grid kpi-grid-pending",
@@ -571,6 +582,7 @@ make_datatable <- function(data, caption = NULL) {
   data_display <- data |>
     dplyr::select(
       proyecto,
+      proyecto_de_exportacion_estrategia_largo_plazo,
       empresa,
       titular_proyecto,
       sector,
@@ -589,6 +601,7 @@ make_datatable <- function(data, caption = NULL) {
     ) |>
     dplyr::rename(
       Proyecto = proyecto,
+      `Proyectos de exportación estratégica de largo plazo (PEELP)` = proyecto_de_exportacion_estrategia_largo_plazo,
       Empresa = empresa,
       `Titular / VPU` = titular_proyecto,
       Sector = sector,
