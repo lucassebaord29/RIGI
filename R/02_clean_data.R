@@ -288,11 +288,20 @@ create_download_files <- function(data, output_dir = "downloads") {
     dplyr::filter(pendiente_aprobacion) |>
     make_download_table()
 
+  total_download <- data |>
+    make_download_table()
+
   readr::write_csv(aprobados_download, file.path(output_dir, "base_interactiva_aprobados.csv"), na = "")
   readr::write_csv(pendientes_download, file.path(output_dir, "base_interactiva_pendientes.csv"), na = "")
+  readr::write_csv(total_download, file.path(output_dir, "base_completa.csv"), na = "")
 
   writexl::write_xlsx(aprobados_download, file.path(output_dir, "base_interactiva_aprobados.xlsx"))
   writexl::write_xlsx(pendientes_download, file.path(output_dir, "base_interactiva_pendientes.xlsx"))
+  writexl::write_xlsx(total_download, file.path(output_dir, "base_completa.xlsx"))
 
-  invisible(list(aprobados = aprobados_download, pendientes = pendientes_download))
+  invisible(list(
+    aprobados = aprobados_download,
+    pendientes = pendientes_download,
+    total = total_download
+  ))
 }

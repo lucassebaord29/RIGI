@@ -57,11 +57,21 @@ make_kpi_cards_aprobados(indicadores)
 make_kpi_cards_exportacion_largo_plazo(indicadores)
 ```
 
+## Participación PEELP en el monto aprobado
+
+```{r}
+plot_peelp_share(indicadores)
+```
+
+## Ranking de proyectos PEELP
+
 ```{r}
 plot_top_proyectos_monto(
   tablas$aprobados_exportacion_largo_plazo,
-  title = "Proyectos aprobados PEELP",
-  fill_color = bar_color_approved
+  title = NULL,
+  fill_color = bar_color_peelp,
+  total_value = indicadores$monto_aprobado,
+  share_reference = "del monto aprobado"
 )
 ```
 
@@ -76,8 +86,10 @@ make_kpi_cards_empleo_aprobado(indicadores)
 ```{r}
 plot_top_proyectos_monto(
   tablas$top_projects_aprobados,
-  title = "Top 10 proyectos aprobados por monto",
-  fill_color = bar_color_approved
+  title = NULL,
+  fill_color = bar_color_approved,
+  total_value = indicadores$monto_aprobado,
+  share_reference = "del monto aprobado"
 )
 ```
 
@@ -86,8 +98,9 @@ plot_top_proyectos_monto(
 ```{r}
 plot_top_proyectos_empleo(
   tablas$top_empleos_aprobados,
-  title = "Top 10 proyectos aprobados por empleo directo e indirecto",
-  fill_color = bar_color_employment
+  title = NULL,
+  fill_color = bar_color_employment,
+  total_value = indicadores$empleos_aprobados
 )
 ```
 
@@ -97,7 +110,7 @@ plot_top_proyectos_empleo(
 plot_bar_monto(
   tablas$sector_tbl_aprobados,
   label_col = "sector_simplificado",
-  title = "Monto aprobado por sector",
+  title = NULL,
   fill_color = bar_color_approved
 )
 ```
@@ -108,7 +121,7 @@ plot_bar_monto(
 plot_bar_empleo(
   tablas$empleo_sector_aprobados,
   label_col = "sector_simplificado",
-  title = "Empleo informado en proyectos aprobados por sector",
+  title = NULL,
   fill_color = bar_color_employment
 )
 ```
@@ -124,8 +137,10 @@ make_kpi_cards_pendientes(indicadores)
 ```{r}
 plot_top_proyectos_monto(
   tablas$top_projects_pendientes,
-  title = "Top 10 proyectos pendientes / en evaluación por monto",
-  fill_color = bar_color_pending
+  title = NULL,
+  fill_color = bar_color_pending,
+  total_value = indicadores$monto_pendiente,
+  share_reference = "del monto pendiente / en evaluación"
 )
 ```
 
@@ -142,7 +157,7 @@ plot_compare_aprobado_pendiente(
   aprobado_tbl = tablas$sector_tbl_aprobados,
   pendiente_tbl = tablas$sector_tbl_pendientes,
   label_col = "sector_simplificado",
-  title = "Monto por sector: aprobados vs. pendientes / en evaluación"
+  title = NULL
 )
 ```
 

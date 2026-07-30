@@ -74,76 +74,17 @@ Esta sección muestra exclusivamente proyectos con estado administrativo **Aprob
 make_kpi_cards_aprobados(indicadores)
 ```
 
-## Proyectos de exportación estratégica de largo plazo (PEELP)
-
-::: {.section-intro}
-Esta subsección identifica los proyectos aprobados cuya columna **Proyectos de exportación estratégica de largo plazo (PEELP)** tiene valor **Sí** en el Excel fuente.
-::: 
-
-```{r}
-make_kpi_cards_exportacion_largo_plazo(indicadores)
-```
-
-```{r}
-plot_top_proyectos_monto(
-  tablas$aprobados_exportacion_largo_plazo,
-  title = "Proyectos aprobados PEELP",
-  fill_color = bar_color_approved
-)
-```
-
-```{r}
-make_datatable(
-  tablas$aprobados_exportacion_largo_plazo,
-  caption = "Proyectos aprobados PEELP"
-)
-```
-
-## Empleo informado en proyectos aprobados
-
-```{r}
-make_kpi_cards_empleo_aprobado(indicadores)
-```
-
-```{r}
-plot_top_proyectos_empleo(
-  tablas$top_empleos_aprobados,
-  title = "Top 10 proyectos aprobados por empleo directo e indirecto",
-  fill_color = bar_color_employment
-)
-```
-
-```{r}
-plot_bar_empleo(
-  tablas$empleo_sector_aprobados,
-  label_col = "sector_simplificado",
-  title = "Empleo informado en proyectos aprobados por sector",
-  fill_color = bar_color_employment
-)
-```
-
-```{r}
-make_province_note()
-```
-
-```{r}
-plot_bar_empleo(
-  tablas$empleo_provincia_aprobados,
-  label_col = "provincia_simplificada",
-  title = "Empleo informado en proyectos aprobados por provincia",
-  subtitle = "El empleo se asigna proporcionalmente cuando el proyecto incluye más de una provincia",
-  fill_color = bar_color_employment
-)
-```
-
 ## Monto aprobado por sector
+
+```{r}
+make_chart_context_note("Las etiquetas muestran el monto y su participación sobre la inversión total aprobada.")
+```
 
 ```{r}
 plot_bar_monto(
   tablas$sector_tbl_aprobados,
   label_col = "sector_simplificado",
-  title = "Monto aprobado por sector",
-  subtitle = "Solo proyectos aprobados",
+  title = NULL,
   fill_color = bar_color_approved
 )
 ```
@@ -158,30 +99,132 @@ make_province_note()
 plot_bar_monto(
   tablas$provincia_tbl_aprobados,
   label_col = "provincia_simplificada",
-  title = "Monto aprobado por provincia",
-  subtitle = "Los proyectos multiprovinciales se desagregan y el monto se asigna proporcionalmente",
+  title = NULL,
   fill_color = bar_color_approved
 )
 ```
+
+## Empleo informado en proyectos aprobados
+
+```{r}
+make_kpi_cards_empleo_aprobado(indicadores)
+```
+
+```{r}
+make_chart_context_note(
+  htmltools::strong(paste0(
+    fmt_integer(indicadores$n_aprobados_con_empleo),
+    " de ",
+    fmt_integer(indicadores$n_aprobados),
+    " proyectos aprobados"
+  )),
+  " informan empleo directo e indirecto. Las etiquetas muestran cantidad y participación sobre el empleo total informado."
+)
+```
+
+::: {.panel-tabset .rigi-chart-tabs}
+
+### Por proyecto
+
+```{r}
+plot_top_proyectos_empleo(
+  tablas$top_empleos_aprobados,
+  title = NULL,
+  fill_color = bar_color_employment,
+  total_value = indicadores$empleos_aprobados
+)
+```
+
+### Por sector
+
+```{r}
+plot_bar_empleo(
+  tablas$empleo_sector_aprobados,
+  label_col = "sector_simplificado",
+  title = NULL,
+  fill_color = bar_color_employment
+)
+```
+
+### Por provincia
+
+```{r}
+make_province_note()
+```
+
+```{r}
+plot_bar_empleo(
+  tablas$empleo_provincia_aprobados,
+  label_col = "provincia_simplificada",
+  title = NULL,
+  fill_color = bar_color_employment
+)
+```
+
+:::
 
 ## Ranking de proyectos aprobados por monto
 
 ```{r}
+make_chart_context_note("Los tres primeros puestos se destacan por intensidad de color. Cada etiqueta muestra el monto y su participación sobre la inversión total aprobada.")
+```
+
+```{r}
 plot_top_proyectos_monto(
   tablas$top_projects_aprobados,
-  title = "Top 10 proyectos aprobados por monto",
-  fill_color = bar_color_approved
+  title = NULL,
+  fill_color = bar_color_approved,
+  total_value = indicadores$monto_aprobado,
+  share_reference = "del monto aprobado"
 )
 ```
 
-## Línea de tiempo de aprobación
+## Proyectos de exportación estratégica de largo plazo (PEELP)
+
+::: {.section-intro}
+Esta subsección reúne los proyectos aprobados clasificados como **Proyectos de Exportación Estratégica de Largo Plazo (PEELP)**.
+::: 
 
 ```{r}
-plot_timeline(
-  tablas$timeline_aprobados_tbl,
-  date_col = "fecha_aprobacion",
-  title = "Línea de tiempo de proyectos aprobados"
+make_kpi_cards_exportacion_largo_plazo(indicadores)
+```
+
+### Participación en el monto aprobado
+
+```{r}
+plot_peelp_share(indicadores)
+```
+
+### Ranking de proyectos PEELP por monto
+
+```{r}
+plot_top_proyectos_monto(
+  tablas$aprobados_exportacion_largo_plazo,
+  title = NULL,
+  fill_color = bar_color_peelp,
+  total_value = indicadores$monto_aprobado,
+  share_reference = "del monto aprobado"
 )
+```
+
+### Fichas de proyectos PEELP
+
+```{r}
+make_rigi_project_cards(
+  tablas$aprobados_exportacion_largo_plazo,
+  table_type = "aprobados",
+  caption = "Fichas de proyectos aprobados PEELP",
+  widget_key = "peelp",
+  show_classification_filter = FALSE
+)
+```
+
+## Hitos del RIGI
+
+<p class="rigi-milestones-subtitle">Desde la sanción de la Ley de Bases hasta el último proyecto aprobado.</p>
+
+```{r}
+make_rigi_milestones_timeline(tablas$timeline_aprobados_tbl)
 ```
 
 ## Base interactiva: aprobados
@@ -193,7 +236,11 @@ make_download_links("aprobados")
 Las descargas conservan como columnas numéricas: `Monto (mill. USD)`, `Activos Computables (mill. USD)` y `Empleos (directos e indirectos)`.
 
 ```{r}
-make_datatable(tablas$base_aprobados, caption = "Base interactiva de proyectos aprobados")
+make_rigi_project_cards(
+  tablas$base_aprobados,
+  table_type = "aprobados",
+  caption = "Base interactiva de proyectos aprobados"
+)
 ```
 
 # 2. Proyectos pendientes de aprobación / en evaluación
@@ -214,7 +261,7 @@ make_kpi_cards_pendientes(indicadores)
 plot_bar_monto(
   tablas$sector_tbl_pendientes,
   label_col = "sector_simplificado",
-  title = "Monto pendiente / en evaluación por sector",
+  title = NULL,
   fill_color = bar_color_pending
 )
 ```
@@ -229,8 +276,7 @@ make_province_note()
 plot_bar_monto(
   tablas$provincia_tbl_pendientes,
   label_col = "provincia_simplificada",
-  title = "Monto pendiente / en evaluación por provincia",
-  subtitle = "Los proyectos multiprovinciales se desagregan y el monto se asigna proporcionalmente",
+  title = NULL,
   fill_color = bar_color_pending
 )
 ```
@@ -240,18 +286,27 @@ plot_bar_monto(
 ```{r}
 plot_top_proyectos_monto(
   tablas$top_projects_pendientes,
-  title = "Top 10 proyectos pendientes / en evaluación por monto",
-  fill_color = bar_color_pending
+  title = NULL,
+  fill_color = bar_color_pending,
+  total_value = indicadores$monto_pendiente,
+  share_reference = "del monto pendiente / en evaluación"
 )
 ```
 
 ## Línea de tiempo de presentación de pendientes / en evaluación
 
 ```{r}
+make_chart_context_note(
+  "Cada fila representa un proyecto, ordenado por fecha de presentación. ",
+  "El tamaño de la burbuja indica el monto de inversión y la etiqueta muestra su valor exacto."
+)
+```
+
+```{r}
 plot_timeline(
   tablas$timeline_pendientes_tbl,
   date_col = "fecha_presentacion",
-  title = "Línea de tiempo de presentación: pendientes / en evaluación"
+  title = NULL
 )
 ```
 
@@ -264,7 +319,11 @@ make_download_links("pendientes")
 Las descargas conservan como columnas numéricas: `Monto (mill. USD)`, `Activos Computables (mill. USD)` y `Empleos (directos e indirectos)`.
 
 ```{r}
-make_datatable(tablas$base_pendientes, caption = "Base interactiva de proyectos pendientes / en evaluación")
+make_rigi_project_cards(
+  tablas$base_pendientes,
+  table_type = "pendientes",
+  caption = "Base interactiva de proyectos pendientes / en evaluación"
+)
 ```
 
 # 3. Comparación aprobados vs. pendientes
@@ -276,7 +335,7 @@ make_kpi_cards_total(indicadores)
 ```
 
 ```{r}
-plot_compare_counts_montos(indicadores)
+plot_compare_counts_montos(indicadores, title = NULL)
 ```
 
 ## Comparación por sector
@@ -286,7 +345,7 @@ plot_compare_aprobado_pendiente(
   aprobado_tbl = tablas$sector_tbl_aprobados,
   pendiente_tbl = tablas$sector_tbl_pendientes,
   label_col = "sector_simplificado",
-  title = "Monto por sector: aprobados vs. pendientes / en evaluación"
+  title = NULL
 )
 ```
 
@@ -297,20 +356,30 @@ plot_compare_aprobado_pendiente(
   aprobado_tbl = tablas$provincia_tbl_aprobados,
   pendiente_tbl = tablas$provincia_tbl_pendientes,
   label_col = "provincia_simplificada",
-  title = "Monto por provincia: aprobados vs. pendientes / en evaluación"
+  title = NULL
 )
 ```
 
 ## Estado administrativo del universo total
 
 ```{r}
-plot_estado(tablas$estado_tbl)
+plot_estado(tablas$estado_tbl, title = NULL)
 ```
 
 # 4. Base completa
 
 ```{r}
-make_datatable(tablas$base_total, caption = "Base completa de proyectos")
+make_download_links("total")
+```
+
+Las descargas conservan la totalidad de los proyectos y mantienen como columnas numéricas: `Monto (mill. USD)`, `Activos Computables (mill. USD)` y `Empleos (directos e indirectos)`.
+
+```{r}
+make_rigi_project_cards(
+  tablas$base_total,
+  table_type = "total",
+  caption = "Base completa de proyectos"
+)
 ```
 
 # 5. Notas metodológicas

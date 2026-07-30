@@ -1,5 +1,12 @@
 # Monitor de Proyectos RIGI
 
+## Variante visual incluida
+
+**Fichas de proyectos + gráficos institucionales.** Las bases interactivas se
+presentan como tarjetas filtrables y ordenables, mientras que los gráficos
+utilizan una estética limpia, jerárquica y consistente. La grilla de fichas usa
+dos columnas en escritorio y una en pantallas pequeñas.
+
 Sitio web reproducible construido con **R + Quarto + GitHub Pages** a partir de la solapa `Proyectos` del archivo:
 
 ```text
@@ -16,8 +23,21 @@ RIGI_tracker_data_final_con_proyectos_integrados.xlsx
 - Se agregan descargas en `.xlsx` y `.csv` para:
   - `Base interactiva: aprobados`
   - `Base interactiva: pendientes`
+  - `Base completa`
 - En las descargas, las columnas `Monto (mill. USD)`, `Activos Computables (mill. USD)` y `Empleos (directos e indirectos)` se mantienen como numéricas.
-- Se mejoró la estética general del sitio y de los gráficos.
+- Las bases con información PEELP incorporan el filtro `Clasificación del proyecto`, con las opciones `Todos los proyectos`, `Solo proyectos PEELP` y `Solo proyectos no PEELP`.
+- La subsección PEELP utiliza fichas filtrables y expandibles, manteniendo el gráfico comparativo por monto.
+- Los indicadores PEELP incluyen la participación de su inversión sobre el monto total de inversión de los proyectos aprobados.
+- Los gráficos muestran etiquetas directas con valor y participación, sin
+  recuadros blancos ni títulos internos repetidos.
+- Se utiliza una paleta semántica: azul para inversión aprobada, naranja para
+  pendientes, verde petróleo para empleo y violeta para PEELP.
+- El empleo se organiza en pestañas por proyecto, sector y provincia.
+- PEELP incorpora una barra de composición del monto aprobado y un ranking
+  específico.
+- Los rankings numeran los proyectos y destacan visualmente los tres primeros.
+- Los contenedores, márgenes y alturas de los gráficos se adaptan a pantallas
+  grandes y pequeñas.
 - Los nombres largos de proyectos, sectores o provincias en los gráficos se muestran en hasta dos renglones para mejorar la legibilidad.
 
 ## Fuentes y aclaración metodológica

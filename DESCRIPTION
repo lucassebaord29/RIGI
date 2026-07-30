@@ -13,5 +13,6 @@ Imports:
     glue,
     scales,
     htmltools,
+    htmlwidgets,
     forcats,
     writexl

@@ -13,6 +13,7 @@ required_packages <- c(
   "glue",
   "scales",
   "htmltools",
+  "htmlwidgets",
   "forcats",
   "writexl"
 )

@@ -17,6 +17,20 @@ median_or_na <- function(x) {
   median(x)
 }
 
+ratio_or_na <- function(numerator, denominator) {
+  if (
+    length(numerator) == 0 ||
+    length(denominator) == 0 ||
+    is.na(numerator) ||
+    is.na(denominator) ||
+    denominator == 0
+  ) {
+    return(NA_real_)
+  }
+
+  numerator / denominator
+}
+
 fmt_number <- function(x, accuracy = 1) {
   if (length(x) == 0) return(character(0))
   out <- scales::number(x, accuracy = accuracy, big.mark = ".", decimal.mark = ",")
@@ -125,13 +139,21 @@ make_indicators <- function(data, data_prov, file_update_time) {
     monto_promedio_aprobado = mean_or_na(aprobados$monto_usd_mill),
     monto_mediano_aprobado = median_or_na(aprobados$monto_usd_mill),
     empleos_aprobados = sum_or_na(aprobados$empleos_directos_indirectos),
+    n_aprobados_con_empleo = sum(!is.na(aprobados$empleos_directos_indirectos)),
     empleos_promedio_aprobados = mean_or_na(aprobados$empleos_directos_indirectos),
     empleos_mediana_aprobados = median_or_na(aprobados$empleos_directos_indirectos),
     n_aprobados_exportacion_largo_plazo = nrow(aprobados_exportacion_lp),
     monto_aprobados_exportacion_largo_plazo = sum_or_na(aprobados_exportacion_lp$monto_usd_mill),
     activos_aprobados_exportacion_largo_plazo = sum_or_na(aprobados_exportacion_lp$activos_computables_usd_mill),
     empleos_aprobados_exportacion_largo_plazo = sum_or_na(aprobados_exportacion_lp$empleos_directos_indirectos),
-    participacion_aprobados_exportacion_largo_plazo = n_aprobados_exportacion_largo_plazo / n_aprobados,
+    participacion_aprobados_exportacion_largo_plazo = ratio_or_na(
+      n_aprobados_exportacion_largo_plazo,
+      n_aprobados
+    ),
+    participacion_monto_aprobados_exportacion_largo_plazo = ratio_or_na(
+      monto_aprobados_exportacion_largo_plazo,
+      monto_aprobado
+    ),
     sector_top_aprobado = sector_top_aprobado,
     provincia_top_aprobada = provincia_top_aprobada,
     empleo_top_proyecto = empleo_top_proyecto,
@@ -235,8 +257,7 @@ make_tables <- function(data, data_prov) {
       dplyr::arrange(dplyr::desc(empleos_directos_indirectos)),
 
     timeline_aprobados_tbl = aprobados |>
-      dplyr::filter(!is.na(fecha_aprobacion)) |>
-      dplyr::arrange(fecha_aprobacion),
+      dplyr::arrange(is.na(fecha_adhesion_rigi), fecha_adhesion_rigi, proyecto),
 
     timeline_pendientes_tbl = pendientes |>
       dplyr::filter(!is.na(fecha_presentacion)) |>
